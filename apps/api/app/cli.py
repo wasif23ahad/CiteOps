@@ -6,23 +6,22 @@ import uvicorn
 from app.core.config import get_settings
 
 
-def configure_event_loop_policy() -> None:
-    """Psycopg 3 async requires SelectorEventLoop on Windows."""
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-
 def serve() -> None:
-    """Start the FastAPI server with cross-platform event loop compatibility."""
-    configure_event_loop_policy()
+    """Start FastAPI with SelectorEventLoop on Windows for psycopg 3 async compatibility."""
     settings = get_settings()
-    uvicorn.run(
+    config = uvicorn.Config(
         "app.main:app",
         host=settings.api_host,
         port=settings.api_port,
         workers=1,
         loop="asyncio",
     )
+    server = uvicorn.Server(config)
+
+    if sys.platform == "win32":
+        asyncio.run(server.serve(), loop_factory=asyncio.SelectorEventLoop)
+    else:
+        asyncio.run(server.serve())
 
 
 if __name__ == "__main__":

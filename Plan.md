@@ -11,7 +11,7 @@
 
 | Phase | Name | Target Window | Primary Outcome | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phase 0** | Monorepo Scaffold, Config & Local Infra | Day 1 (AM) | Working `docker-compose`, FastAPI `/v1/health`, Next.js 16 skeleton | `[ ] Pending` |
+| **Phase 0** | Monorepo Scaffold, Config & Local Infra | Day 1 (AM) | Working `docker-compose`, FastAPI `/v1/health`, Next.js 16 skeleton | `[x] Complete` |
 | **Phase 1** | Postgres 17 Schema, RLS & Hexagonal Core | Day 1 (Mid) | `pgvector 0.8.6` + RLS migrations, domain ports, Pydantic contracts | `[ ] Pending` |
 | **Phase 2** | Idempotent Ingestion, Embeddings & Seed Data | Day 1 (PM) | `POST /v1/ingest`, `/v1/documents`, `pymupdf4llm`, `gemini-embedding-001`, demo corpus | `[ ] Pending` |
 | **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[ ] Pending` |
@@ -27,21 +27,21 @@
 **Objective:** Establish clean monorepo conventions, dependency management, environment configuration, and local Postgres/Redis containers before writing domain logic.
 
 ### Deliverables
-- [ ] **Root orchestration & hygiene:**
+- [x] **Root orchestration & hygiene:**
   - `.gitignore` (Python, Node/Next.js, `.env`, local ONNX cache, pytest/coverage)
   - `.env.example` (documented variables for Postgres, Redis, `GEMINI_API_KEY`, optional `GROQ_API_KEY` / `OLLAMA_BASE_URL`, `RERANKER_PROFILE`, `EMBEDDING_PROVIDER`, `LANGFUSE_*`, `CITEOPS_INTERNAL_API_KEY`)
   - `docker-compose.yml` running:
-    - `postgres`: `pgvector/pgvector:0.8.6-pg17` (with healthcheck & init role bootstrap)
+    - `postgres`: `pgvector/pgvector:0.8.6-pg17` (with healthcheck & `docker/postgres/init.sql` extension bootstrap)
     - `redis`: `redis:8-alpine` (with healthcheck)
     - `api` and `web` service definitions ready for container builds
-- [ ] **Backend scaffold (`apps/api/`):**
+- [x] **Backend scaffold (`apps/api/`):**
   - `pyproject.toml` (Python 3.12, `uv`-compatible, FastAPI, Uvicorn, Pydantic v2, `psycopg[binary,pool]`, `pgvector`, `redis`, `google-genai`, `fastembed`, `pymupdf4llm`, `tenacity`, `structlog`, `langfuse`, `numpy`, dev deps `pytest`, `pytest-asyncio`, `httpx`, `ruff`, `mypy`)
   - `Dockerfile` (slim Python 3.12 multi-stage build, non-root user, `--workers 1`)
   - `app/core/config.py` (typed `pydantic-settings` configuration with validation for `RERANKER_PROFILE=light|base`, `LLM_PROVIDER=gemini|ollama`, `EMBEDDING_DIM=768`)
   - `app/core/logging.py` (JSON structured logging via `structlog` + `X-Request-ID` contextvar)
   - `app/main.py` (FastAPI app factory + lifespan hook + request-ID & internal API key middleware)
   - `app/api/v1/health.py` (`GET /v1/health` checking Postgres, `vector` extension, and Redis)
-- [ ] **Frontend scaffold (`apps/web/`):**
+- [x] **Frontend scaffold (`apps/web/`):**
   - Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS v4 + `shadcn/ui` + Lucide Icons + TanStack Query v5
   - `Dockerfile` (standalone output build)
 

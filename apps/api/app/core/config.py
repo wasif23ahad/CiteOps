@@ -28,13 +28,13 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     # Database (PostgreSQL 17 + pgvector >= 0.8.0)
-    database_url: str = "postgresql://citeops:citeops_dev_password@localhost:5432/citeops"
-    database_admin_url: str = "postgresql://citeops:citeops_dev_password@localhost:5432/citeops"
+    database_url: str = "postgresql://citeops:citeops_dev_password@localhost:5433/citeops"
+    database_admin_url: str = "postgresql://citeops:citeops_dev_password@localhost:5433/citeops"
     db_pool_min_size: int = Field(default=2, ge=1, le=20)
     db_pool_max_size: int = Field(default=10, ge=2, le=50)
 
     # Redis & Semantic Cache
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://localhost:6380/0"
     semantic_cache_threshold: float = Field(default=0.95, ge=0.5, le=1.0)
     semantic_cache_max_entries: int = Field(default=500, ge=10, le=5000)
     cache_ttl_seconds: int = Field(default=86400, ge=60)

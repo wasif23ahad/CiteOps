@@ -47,7 +47,8 @@ async def _check_postgres(
         return pg_check, vec_check
     except Exception as exc:
         elapsed = round((time.perf_counter() - started) * 1000, 2)
-        err = DependencyCheck(status="error", detail=str(exc), latency_ms=elapsed)
+        detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        err = DependencyCheck(status="error", detail=detail, latency_ms=elapsed)
         return err, DependencyCheck(status="error", detail="Skipped (postgres unreachable)")
 
 
@@ -69,7 +70,8 @@ async def _check_redis(redis_client: Redis | None) -> DependencyCheck:
         )
     except Exception as exc:
         elapsed = round((time.perf_counter() - started) * 1000, 2)
-        return DependencyCheck(status="degraded", detail=str(exc), latency_ms=elapsed)
+        detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        return DependencyCheck(status="degraded", detail=detail, latency_ms=elapsed)
 
 
 @router.get("/health", response_model=HealthResponse)
