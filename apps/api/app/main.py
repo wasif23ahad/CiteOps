@@ -12,6 +12,7 @@ from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
 from app.adapters.audit_postgres import PostgresAuditRepository
+from app.adapters.cache_redis import RedisSemanticCache
 from app.adapters.corpus_version import CorpusVersionStore
 from app.adapters.embeddings_gemini import create_embedding_adapter
 from app.adapters.llm_router import ResilientLLMRouter
@@ -22,9 +23,12 @@ from app.adapters.retriever_postgres import PostgresHybridRetriever
 from app.api.v1.documents import router as documents_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ingest import router as ingest_router
+from app.api.v1.metrics import router as metrics_router
 from app.api.v1.query import router as query_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger, request_id_ctx
+from app.core.rate_limit import SlidingWindowRateLimiter
+from app.core.telemetry import TelemetryTracer
 from app.db.pool import create_db_pool
 from app.services.chunker import StructureAwareChunker
 from app.services.ingestion import DocumentLifecycleService, IngestionOrchestrator
@@ -44,6 +48,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     db_pool: AsyncConnectionPool | None = None
     redis_client: Redis | None = None
     cpu_semaphore = asyncio.Semaphore(2)
+    telemetry = TelemetryTracer(settings)
 
     if settings.app_env != "test":
         db_pool = create_db_pool(settings)
@@ -65,9 +70,23 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.db_pool = db_pool
     app.state.redis = redis_client
     app.state.cpu_semaphore = cpu_semaphore
+    app.state.telemetry = telemetry
 
     corpus_versions = CorpusVersionStore(redis_client)
+    semantic_cache = RedisSemanticCache(
+        redis_client,
+        similarity_threshold=settings.semantic_cache_threshold,
+        max_entries=settings.semantic_cache_max_entries,
+        default_ttl_seconds=settings.cache_ttl_seconds,
+    )
+    rate_limiter = SlidingWindowRateLimiter(
+        redis_client,
+        tenant_rpm=settings.rate_limit_tenant_rpm,
+        global_llm_rpm=settings.rate_limit_global_llm_rpm,
+    )
     app.state.corpus_versions = corpus_versions
+    app.state.semantic_cache = semantic_cache
+    app.state.rate_limiter = rate_limiter
 
     if db_pool is not None:
         doc_repo = PostgresDocumentRepository(db_pool)
@@ -109,6 +128,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
                 llm=llm_router,
                 verifier=verifier,
                 audit_repo=audit_repo,
+                cache=semantic_cache,
+                rate_limiter=rate_limiter,
+                telemetry=telemetry,
             )
         except Exception as exc:
             logger.warning("embedder_init_warning", error=str(exc))
@@ -119,10 +141,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         llm_provider=settings.llm_provider,
         reranker_profile=settings.reranker_profile,
         embedding_provider=settings.embedding_provider,
+        langfuse_enabled=telemetry.enabled,
     )
     try:
         yield
     finally:
+        telemetry.shutdown()
         if redis_client is not None:
             await redis_client.aclose()
         if db_pool is not None:
@@ -142,6 +166,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = resolved_settings
     app.state.db_pool = None
     app.state.redis = None
+    app.state.audit_repo = None
     app.state.ingestion_orchestrator = None
     app.state.document_lifecycle_service = None
     app.state.query_orchestrator = None
@@ -213,6 +238,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ingest_router, prefix=resolved_settings.api_v1_prefix)
     app.include_router(documents_router, prefix=resolved_settings.api_v1_prefix)
     app.include_router(query_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(metrics_router, prefix=resolved_settings.api_v1_prefix)
     return app
 
 

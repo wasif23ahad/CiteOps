@@ -15,7 +15,7 @@
 | **Phase 1** | Postgres 17 Schema, RLS & Hexagonal Core | Day 1 (Mid) | `pgvector 0.8.6` + RLS migrations, domain ports, Pydantic contracts | `[x] Complete` |
 | **Phase 2** | Idempotent Ingestion, Embeddings & Seed Data | Day 1 (PM) | `POST /v1/ingest`, `/v1/documents`, `pymupdf4llm`, `gemini-embedding-001`, demo corpus | `[x] Complete` |
 | **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[x] Complete` |
-| **Phase 4** | Semantic Cache, Rate Limiter, Metrics & Langfuse | Day 2 (PM) | Versioned L1/L2 Redis cache, Lua rate limiter, `/v1/metrics/summary`, OTel/Langfuse tracing | `[ ] Pending` |
+| **Phase 4** | Semantic Cache, Rate Limiter, Metrics & Langfuse | Day 2 (PM) | Versioned L1/L2 Redis cache, Lua rate limiter, `/v1/metrics/summary`, OTel/Langfuse tracing | `[x] Complete` |
 | **Phase 5** | Perplexity-Style Next.js 16 Frontend | Day 3 (AM–Mid) | BFF proxy, Citation Workspace, Source Drawer, Telemetry Bar, Docs & Metrics pages | `[ ] Pending` |
 | **Phase 6** | Golden Evals (`DeepEval`) & Two-Tier CI Gate | Day 3 (PM) | 50-Q dataset, deterministic Recall@5, paced DeepEval smoke/full suites, GitHub Actions | `[ ] Pending` |
 | **Phase 7** | `$0/month` Cloud Deployment & Benchmark Polish | Day 4 | Live Neon + Upstash + Render/HF Spaces + Vercel + Langfuse + `README.md` scorecard | `[ ] Pending` |
@@ -146,21 +146,22 @@
 **Objective:** Achieve `< 50 ms` repeat query latency, instant $O(1)$ cache invalidation on corpus changes, free-tier quota protection, and full OpenTelemetry + Langfuse v3+ visibility.
 
 ### Deliverables
-- [ ] **Generation-Versioned Redis Cache (`SemanticCachePort`):**
+- [x] **Generation-Versioned Redis Cache (`SemanticCachePort`):**
   - `app/adapters/cache_redis.py`:
-    - `corpus_version` counter at `tenant:version:{tenant_id}`
+    - `corpus_version` counter at `tenant:version:{tenant_id}` (atomic `SET NX 1` + `INCR` so `v1` always invalidates cleanly to `v2+`)
     - L1 exact normalized hash cache (`cache:exact:{tenant_id}:v{ver}:{filter}:{hash}`, 24h TTL)
     - L2 tenant-bounded semantic cache (`cache:vec:{tenant_id}:v{ver}:{filter}`, LRU cap 500 entries, vectorized NumPy cosine similarity `> 0.95`)
     - Fail-open timeout/error wrapper so Redis outage never breaks `/v1/query`
-  - Wire atomic `INCR tenant:version:{tenant_id}` into `IngestionOrchestrator` and `DocumentLifecycleService`.
-- [ ] **Atomic Sliding-Window Rate Limiter:**
-  - `app/core/rate_limit.py` (Redis Lua ZSET script enforcing per-tenant `20 req/min` + global LLM-miss `12 req/min`, returning HTTP `429` with `Retry-After`).
-- [ ] **Metrics API & Langfuse v3+ Observability:**
-  - `app/core/telemetry.py` (`langfuse` v3+ `@observe()` root trace + child spans for `cache_lookup`, `embed_query`, `hybrid_retrieval`, `rerank`, `llm_generate`, `citation_verify`; OTel scope filter dropping noisy ASGI framework spans)
+  - Wired atomic `corpus_version` increment into `IngestionOrchestrator` and `DocumentLifecycleService`.
+- [x] **Atomic Sliding-Window Rate Limiter:**
+  - `app/core/rate_limit.py` (Redis Lua ZSET script enforcing per-tenant `20 req/min` + global LLM-miss `12 req/min`, returning HTTP `429` with `Retry-After`, with in-process deque fallback).
+- [x] **Metrics API & Langfuse v3+ Observability:**
+  - `app/core/telemetry.py` (`langfuse` v4 OpenTelemetry `start_as_current_observation` root trace + child spans for `rate_limit`, `cache_lookup`, `embed_query`, `hybrid_retrieval`, `rerank`, `llm_generate`, `citation_verify`; `is_langfuse_span` filter dropping noisy ASGI framework spans)
   - `app/api/v1/metrics.py` (`GET /v1/metrics/summary?tenant_id=...` computing total queries, L1/L2 cache hit rate, abstention rate, and `PERCENTILE_CONT` p50/p95 latencies from `query_audit_logs`)
-- [ ] **Tests:**
-  - `test_semantic_cache.py` (L1 exact hit, L2 paraphrased hit > 0.95, `doc_types` scope isolation, immediate invalidation after ingest/delete, fail-open behavior)
-  - `test_rate_limit.py` (per-tenant burst triggers `429`; cache hits bypass LLM-miss budget)
+- [x] **Tests:**
+  - `test_semantic_cache.py` (L1 exact hit `< 50 ms`, L2 paraphrased hit `> 0.95`, `doc_types` scope isolation, immediate invalidation after `corpus_version` bump, fail-open behavior)
+  - `test_rate_limit.py` (per-tenant burst triggers `429`; cache hits bypass LLM-miss budget; live Redis Lua test)
+  - `test_metrics.py` (RLS-isolated `/v1/metrics/summary` percentiles & hit/abstention rates)
 
 ### Exit Gate & Verification
 1. Sending an identical or semantically equivalent (`> 0.95` cosine) query returns `cache_hit: true` with `latency_ms < 50`.

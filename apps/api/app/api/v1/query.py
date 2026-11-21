@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from app.adapters.llm_router import LLMUnavailableError
 from app.core.logging import request_id_ctx
+from app.core.rate_limit import RateLimitExceededError
 from app.schemas.query import QueryRequest, QueryResponse
 from app.services.query import QueryOrchestrator
 
@@ -28,6 +29,16 @@ async def execute_query(request: Request, payload: QueryRequest) -> QueryRespons
 
     try:
         return await orchestrator.execute(payload, trace_id=trace_id)
+    except RateLimitExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=exc.detail,
+            headers={
+                "Retry-After": str(exc.decision.retry_after_seconds),
+                "X-RateLimit-Limit": str(exc.decision.limit),
+                "X-RateLimit-Remaining": str(exc.decision.remaining),
+            },
+        ) from exc
     except LLMUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

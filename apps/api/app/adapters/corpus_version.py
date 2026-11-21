@@ -35,9 +35,13 @@ class CorpusVersionStore:
     async def bump_version(self, tenant_id: str) -> int:
         if self._redis is None:
             return 1
+        key = self._key(tenant_id)
         try:
-            new_version = await self._redis.incr(self._key(tenant_id))
-            return max(1, int(new_version))
+            pipe = self._redis.pipeline(transaction=True)
+            pipe.set(key, "1", nx=True)
+            pipe.incr(key)
+            results = await pipe.execute()
+            return max(2, int(results[-1]))
         except Exception as exc:
             logger.warning("redis_corpus_version_bump_failed", tenant_id=tenant_id, error=str(exc))
             return 1
