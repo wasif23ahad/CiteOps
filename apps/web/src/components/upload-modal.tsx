@@ -1,17 +1,25 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, FileUp, Loader2, Sparkles, UploadCloud, X } from "lucide-react";
-import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { CheckCircle2, FileText, FileUp, Loader2, Sparkles, UploadCloud, X } from "lucide-react";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 
 import { ApiError, ingestDocument } from "@/lib/api";
 import { DOC_TYPE_LABELS, type DocType, type IngestResponse } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface UploadModalProps {
   open: boolean;
   tenantId: string;
   onClose: () => void;
 }
+
+const DOC_TYPES: DocType[] = [
+  "api_docs",
+  "security_policy",
+  "sla_contract",
+  "runbook",
+];
 
 export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
   const queryClient = useQueryClient();
@@ -31,6 +39,19 @@ export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
       queryClient.invalidateQueries({ queryKey: ["documents", tenantId] });
     },
   });
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setLastResult(null);
+        mutation.reset();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose, mutation]);
 
   if (!open) return null;
 
@@ -64,36 +85,42 @@ export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
       onClick={resetAndClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Upload Document"
+      aria-labelledby="upload-dialog-title"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl"
+        className="ledger-overlay animate-ledger-enter flex w-full max-w-lg flex-col rounded-2xl bg-ledger-folio"
       >
-        <div className="flex items-center justify-between border-b border-border pb-3">
-          <div className="flex items-center gap-2">
-            <FileUp className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold">
-              Ingest Document into <span className="font-mono">{tenantId}</span>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-ledger-hairline px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <FileUp className="size-4 text-ledger-accent" />
+            <h2
+              id="upload-dialog-title"
+              className="text-sm font-semibold tracking-[-0.01em] text-ledger-ink"
+            >
+              Ingest document into <span className="font-mono">{tenantId}</span>
             </h2>
           </div>
           <button
             type="button"
             onClick={resetAndClose}
-            aria-label="Close upload modal"
-            className="cursor-pointer rounded-md p-1 text-muted-foreground hover:bg-muted"
+            aria-label="Close upload dialog"
+            className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-ledger-ink-muted transition-colors duration-150 hover:bg-ledger-hairline-subtle hover:text-ledger-ink"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
           {/* Drag and Drop Zone */}
           <div
+            role="button"
+            tabIndex={0}
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(true);
@@ -101,21 +128,40 @@ export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-5 py-7 text-center transition-colors duration-150",
               dragOver
-                ? "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-primary bg-accent/40 p-6 text-center"
-                : "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-background p-6 text-center hover:border-primary/50"
-            }
+                ? "border-ledger-accent bg-ledger-accent-tint"
+                : "border-ledger-hairline-strong bg-ledger-inset hover:border-ledger-accent-border"
+            )}
           >
-            <UploadCloud className="h-7 w-7 text-muted-foreground" />
-            <p className="mt-2 text-xs font-medium text-foreground">
-              {file ? file.name : "Drop a PDF, Markdown (.md), or TXT file here, or click to browse"}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {file
-                ? `${(file.size / 1024).toFixed(1)} KB · SHA-256 deduplicated automatically`
-                : "Max 25 MB · Unchanged files incur $0 embedding cost"}
-            </p>
+            {file ? (
+              <div className="flex items-center gap-2.5 rounded-lg border border-ledger-hairline bg-ledger-folio px-3 py-2">
+                <FileText className="size-4 shrink-0 text-ledger-accent" />
+                <div className="text-left">
+                  <p className="text-xs font-medium text-ledger-ink">{file.name}</p>
+                  <p className="font-mono text-[11px] tabular-nums text-ledger-ink-tertiary">
+                    {(file.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <UploadCloud className="size-6 text-ledger-ink-muted" />
+                <p className="text-xs font-medium text-ledger-ink">
+                  Drop a PDF, Markdown, or TXT file here, or click to select
+                </p>
+                <p className="text-[11px] text-ledger-ink-muted">
+                  Up to 25 MB. Identical SHA-256 uploads skip re-embedding automatically.
+                </p>
+              </>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -129,108 +175,128 @@ export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
             />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-xs">
-              <span className="font-medium text-muted-foreground">Document Type</span>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value as DocType)}
-                className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-xs text-foreground"
-              >
-                {(Object.keys(DOC_TYPE_LABELS) as DocType[]).map((dt) => (
-                  <option key={dt} value={dt}>
+          {/* Document Type Segmented Control (replaces raw native <select>) */}
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-xs font-medium text-ledger-ink-secondary">
+              Document category
+            </legend>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {DOC_TYPES.map((dt) => {
+                const active = docType === dt;
+                return (
+                  <button
+                    key={dt}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setDocType(dt)}
+                    className={cn(
+                      "cursor-pointer rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors duration-150 active:scale-[0.98]",
+                      active
+                        ? "border-ledger-accent-border bg-ledger-accent-tint text-ledger-accent"
+                        : "border-ledger-hairline bg-ledger-inset text-ledger-ink-secondary hover:border-ledger-hairline-strong hover:text-ledger-ink"
+                    )}
+                  >
                     {DOC_TYPE_LABELS[dt]}
-                  </option>
-                ))}
-              </select>
-            </label>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
 
-            <label className="space-y-1 text-xs">
-              <span className="font-medium text-muted-foreground">Version</span>
+          {/* Version & Optional Title */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-ledger-ink-secondary">Version</span>
               <input
                 type="text"
                 required
                 value={version}
                 onChange={(e) => setVersion(e.target.value)}
                 placeholder="v2.4.1"
-                className="w-full rounded-md border border-border bg-background px-2.5 py-2 font-mono text-xs text-foreground"
+                className="h-9 rounded-lg border border-ledger-hairline bg-ledger-inset px-3 font-mono text-xs text-ledger-ink placeholder:text-ledger-ink-muted focus:border-ledger-accent-border focus:outline-none"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <span className="text-xs font-medium text-ledger-ink-secondary">
+                Document title <span className="text-ledger-ink-muted">(optional)</span>
+              </span>
+              <input
+                type="text"
+                value={docTitle}
+                onChange={(e) => setDocTitle(e.target.value)}
+                placeholder="Defaults to filename"
+                className="h-9 rounded-lg border border-ledger-hairline bg-ledger-inset px-3 text-xs text-ledger-ink placeholder:text-ledger-ink-muted focus:border-ledger-accent-border focus:outline-none"
               />
             </label>
           </div>
 
-          <label className="block space-y-1 text-xs">
-            <span className="font-medium text-muted-foreground">
-              Document Title (optional — defaults to filename)
-            </span>
-            <input
-              type="text"
-              value={docTitle}
-              onChange={(e) => setDocTitle(e.target.value)}
-              placeholder="e.g. Enterprise Security Addendum"
-              className="w-full rounded-md border border-border bg-background px-2.5 py-2 text-xs text-foreground"
-            />
-          </label>
-
           {/* Error Banner */}
           {mutation.isError && (
-            <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
+            <div
+              role="alert"
+              className="rounded-xl border border-status-fault-border bg-status-fault-tint px-3.5 py-2.5 text-xs text-status-fault"
+            >
               {mutation.error instanceof ApiError
                 ? mutation.error.message
-                : "Upload failed. Check file format and backend status."}
+                : "Ingestion failed. Verify the file format and backend connectivity."}
             </div>
           )}
 
-          {/* Deduplication / Indexed Outcome */}
+          {/* Indexed / SHA-256 Deduplicated Outcome */}
           {lastResult && (
             <div
-              className={
+              className={cn(
+                "flex flex-col gap-1 rounded-xl border px-3.5 py-3 text-xs",
                 lastResult.status === "skipped_unchanged"
-                  ? "rounded-lg border border-sky-500/35 bg-sky-500/10 p-3 text-xs"
-                  : "rounded-lg border border-emerald-500/35 bg-emerald-500/10 p-3 text-xs"
-              }
+                  ? "border-status-info-border bg-status-info-tint"
+                  : "border-status-verified-border bg-status-verified-tint"
+              )}
             >
-              <div className="flex items-center gap-2 font-semibold">
+              <div className="flex items-center gap-2 font-semibold text-ledger-ink">
                 {lastResult.status === "skipped_unchanged" ? (
                   <>
-                    <Sparkles className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                    <span>Skipped Unchanged — $0 Re-Embedding Cost (SHA-256 Match)</span>
+                    <Sparkles className="size-4 text-status-info" />
+                    <span>Unchanged SHA-256 match — skipped with $0 re-embedding cost</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <CheckCircle2 className="size-4 text-status-verified" />
                     <span>
-                      Indexed {lastResult.chunk_count} chunks across {lastResult.page_count} page(s)
+                      Indexed {lastResult.chunk_count} chunks across {lastResult.page_count}{" "}
+                      page(s)
                     </span>
                   </>
                 )}
               </div>
-              <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                corpus_version: v{lastResult.corpus_version} · hash:{" "}
-                {lastResult.content_hash.slice(0, 12)} · {lastResult.latency_ms} ms
+              <p className="font-mono text-[11px] tabular-nums text-ledger-ink-secondary">
+                corpus v{lastResult.corpus_version} / sha256{" "}
+                {lastResult.content_hash.slice(0, 12)} / {lastResult.latency_ms} ms
               </p>
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2 pt-2">
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 border-t border-ledger-hairline pt-4">
             <button
               type="button"
               onClick={resetAndClose}
-              className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+              className="h-9 cursor-pointer rounded-lg border border-ledger-hairline px-3.5 text-xs font-medium text-ledger-ink-secondary transition-colors duration-150 hover:border-ledger-hairline-strong hover:text-ledger-ink"
             >
               Close
             </button>
             <button
               type="submit"
               disabled={!file || mutation.isPending}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-ledger-accent px-4 text-xs font-semibold text-ledger-accent-ink transition-colors duration-150 hover:bg-ledger-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
             >
               {mutation.isPending ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Ingesting...</span>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Indexing</span>
                 </>
               ) : (
-                <span>Ingest Document</span>
+                <span>Ingest document</span>
               )}
             </button>
           </div>

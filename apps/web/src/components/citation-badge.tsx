@@ -19,13 +19,14 @@ export function CitationBadge({
     <button
       type="button"
       onClick={onClick}
-      title={title ? `[${index}] ${title}` : `Inspect citation [${index}]`}
-      aria-label={`Inspect citation ${index}${title ? `: ${title}` : ""}`}
+      title={title ? `Inspect source [${index}]: ${title}` : `Inspect source [${index}]`}
+      aria-label={`Inspect source ${index}${title ? `: ${title}` : ""}`}
+      aria-pressed={active}
       className={cn(
-        "mx-0.5 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded px-1.5 align-baseline font-mono text-[11px] font-semibold transition-all",
+        "mx-0.5 inline-flex h-[19px] min-w-[21px] -translate-y-[1px] cursor-pointer items-center justify-center rounded px-1 align-baseline font-mono text-[11px] font-semibold tabular-nums transition-colors duration-150 active:scale-[0.95]",
         active
-          ? "bg-primary text-primary-foreground ring-2 ring-primary/30"
-          : "border border-border bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground"
+          ? "bg-ledger-accent text-ledger-accent-ink"
+          : "border border-ledger-accent-border bg-ledger-accent-tint text-ledger-accent hover:bg-ledger-accent hover:text-ledger-accent-ink"
       )}
     >
       {index}

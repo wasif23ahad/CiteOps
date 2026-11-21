@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 
 import { TenantProvider } from "@/lib/tenant-context";
+import { ThemeProvider } from "@/lib/theme-context";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -12,6 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 15_000,
+            refetchOnWindowFocus: false,
             retry: 1,
           },
         },
@@ -20,7 +22,9 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TenantProvider>{children}</TenantProvider>
+      <ThemeProvider>
+        <TenantProvider>{children}</TenantProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

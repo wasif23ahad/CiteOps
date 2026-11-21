@@ -1,16 +1,20 @@
 "use client";
 
-import { BookOpen, CheckCircle2, FileText, ShieldAlert } from "lucide-react";
+import { BookOpen, CheckCircle2, FileText, RotateCcw, ShieldAlert } from "lucide-react";
 
 import { CitationBadge } from "@/components/citation-badge";
 import { TelemetryBar } from "@/components/telemetry-bar";
-import { DOC_TYPE_LABELS, type CitationItem, type QueryResponse } from "@/lib/types";
+import { DOC_TYPE_LABELS, type CitationItem, type DocType, type QueryResponse } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface AnswerCardProps {
   query: string;
+  appliedDocTypes: DocType[] | null;
   response: QueryResponse;
   activeCitationIndex: number | null;
+  isActiveBriefing: boolean;
   onInspectCitation: (citations: CitationItem[], index: number) => void;
+  onRetryAllCategories?: (queryText: string) => void;
 }
 
 function renderTokenizedAnswer(
@@ -37,7 +41,7 @@ function renderTokenizedAnswer(
         index={citationNum}
         title={
           matchedCitation
-            ? `${matchedCitation.doc_title} (p.${matchedCitation.page_number})`
+            ? `${matchedCitation.doc_title} (Page ${matchedCitation.page_number})`
             : undefined
         }
         active={activeCitationIndex === citationNum}
@@ -49,74 +53,120 @@ function renderTokenizedAnswer(
 
 export function AnswerCard({
   query,
+  appliedDocTypes,
   response,
   activeCitationIndex,
+  isActiveBriefing,
   onInspectCitation,
+  onRetryAllCategories,
 }: AnswerCardProps) {
   const isAbstained = response.status === "insufficient_evidence";
+  const hasNarrowFilter = Boolean(appliedDocTypes && appliedDocTypes.length > 0);
 
   return (
-    <article className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-xs">
-      {/* User Question Header */}
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="text-base font-semibold leading-snug tracking-tight sm:text-lg">
-          {query}
-        </h2>
+    <article
+      className={cn(
+        "ledger-folio animate-ledger-enter flex flex-col gap-4 rounded-2xl p-5 sm:p-6",
+        isActiveBriefing && !isAbstained && "ring-1 ring-ledger-accent-border"
+      )}
+    >
+      {/* Question Heading + Grounding Seal */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h2 className="text-[17px] font-semibold leading-snug tracking-[-0.02em] text-ledger-ink text-balance">
+            {query}
+          </h2>
+          {hasNarrowFilter && appliedDocTypes && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ledger-ink-muted">
+              <span>Scoped to</span>
+              {appliedDocTypes.map((dt) => (
+                <span
+                  key={dt}
+                  className="rounded border border-ledger-hairline bg-ledger-inset px-1.5 py-0.5 text-ledger-ink-secondary"
+                >
+                  {DOC_TYPE_LABELS[dt]}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         <span
-          className={
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
             isAbstained
-              ? "inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300"
-              : "inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300"
-          }
+              ? "border-status-abstained-border bg-status-abstained-tint text-status-abstained"
+              : "border-status-verified-border bg-status-verified-tint text-status-verified"
+          )}
         >
           {isAbstained ? (
             <>
-              <ShieldAlert className="h-3.5 w-3.5" />
-              Abstained
+              <ShieldAlert className="size-3.5" />
+              <span>Insufficient evidence</span>
             </>
           ) : (
             <>
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Verified Grounding
+              <CheckCircle2 className="size-3.5" />
+              <span>Verified</span>
             </>
           )}
         </span>
       </div>
 
-      {/* Main Answer Body or Safe Abstention Alert */}
+      {/* Main Verdict: Safe Abstention Attestation OR Citation-Locked Answer */}
       {isAbstained ? (
-        <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-4 text-sm">
+        <div className="flex flex-col gap-3 rounded-xl border border-status-abstained-border bg-status-abstained-tint p-4">
           <div className="flex items-start gap-2.5">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div className="space-y-1">
-              <p className="font-medium text-foreground">{response.answer}</p>
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-status-abstained" />
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium leading-relaxed text-ledger-ink text-pretty">
+                {response.answer}
+              </p>
               {response.missing_evidence_reason && (
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  <span className="font-semibold text-foreground">Gap identified: </span>
+                <p className="text-xs leading-relaxed text-ledger-ink-secondary text-pretty">
                   {response.missing_evidence_reason}
                 </p>
               )}
             </div>
           </div>
+
+          {hasNarrowFilter && onRetryAllCategories && (
+            <div className="flex items-center justify-between gap-3 border-t border-status-abstained-border/60 pt-2.5">
+              <span className="text-xs text-ledger-ink-secondary">
+                Category filter excluded other tenant documents.
+              </span>
+              <button
+                type="button"
+                onClick={() => onRetryAllCategories(query)}
+                className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-ledger-hairline-strong bg-ledger-folio px-2.5 py-1 text-xs font-medium text-ledger-ink transition-colors duration-150 hover:border-ledger-accent-border hover:text-ledger-accent active:scale-[0.98]"
+              >
+                <RotateCcw className="size-3" />
+                <span>Search all categories</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="space-y-4">
-          <p className="whitespace-pre-line text-sm leading-7 text-foreground/95 sm:text-[15px]">
+        <div className="flex flex-col gap-5">
+          {/* Answer Prose (constrained 68ch measure for crisp audit legibility) */}
+          <p className="max-w-[68ch] whitespace-pre-line text-[15px] leading-[1.72] text-ledger-ink text-pretty">
             {renderTokenizedAnswer(
               response.answer,
               response.citations,
-              activeCitationIndex,
+              isActiveBriefing ? activeCitationIndex : null,
               onInspectCitation
             )}
           </p>
 
-          {/* Compact Source Cards Strip */}
+          {/* Compact Source Ledger Strip */}
           {response.citations.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <BookOpen className="h-3.5 w-3.5" />
-                  Verified Sources ({response.citations.length})
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ledger-ink-tertiary">
+                  <BookOpen className="size-3.5 text-ledger-ink-muted" />
+                  <span>
+                    Grounded sources ({response.citations.length})
+                  </span>
                 </span>
                 <button
                   type="button"
@@ -126,46 +176,66 @@ export function AnswerCard({
                       response.citations[0].citation_index
                     )
                   }
-                  className="cursor-pointer text-xs font-medium text-primary hover:underline"
+                  className="cursor-pointer text-xs font-medium text-ledger-accent transition-opacity duration-150 hover:opacity-80 xl:hidden"
                 >
-                  Open Inspector →
+                  Inspect excerpts
                 </button>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {response.citations.map((c) => (
-                  <button
-                    key={`${c.document_id}-${c.citation_index}`}
-                    type="button"
-                    onClick={() => onInspectCitation(response.citations, c.citation_index)}
-                    className="group flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent/30"
-                  >
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-accent font-mono text-[11px] font-semibold text-accent-foreground group-hover:bg-primary group-hover:text-primary-foreground">
-                      {c.citation_index}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-foreground">
-                        {c.doc_title}
-                      </p>
-                      <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
-                        <FileText className="h-3 w-3 shrink-0" />
-                        <span>p.{c.page_number}</span>
-                        <span>·</span>
-                        <span>{DOC_TYPE_LABELS[c.doc_type]}</span>
-                        <span>·</span>
-                        <span className="text-emerald-700 dark:text-emerald-300">
-                          {Math.round(c.rerank_score * 100)}%
-                        </span>
-                      </p>
-                    </div>
-                  </button>
-                ))}
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {response.citations.map((c) => {
+                  const selected =
+                    isActiveBriefing && activeCitationIndex === c.citation_index;
+                  const pct = Math.round(c.rerank_score * 100);
+                  return (
+                    <button
+                      key={`${c.document_id}-${c.citation_index}`}
+                      type="button"
+                      onClick={() => onInspectCitation(response.citations, c.citation_index)}
+                      className={cn(
+                        "group flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors duration-150 active:scale-[0.99]",
+                        selected
+                          ? "border-ledger-accent-border bg-ledger-accent-tint/60"
+                          : "border-ledger-hairline bg-ledger-inset/70 hover:border-ledger-hairline-strong"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded font-mono text-[11px] font-semibold tabular-nums transition-colors duration-150",
+                          selected
+                            ? "bg-ledger-accent text-ledger-accent-ink"
+                            : "border border-ledger-hairline-strong bg-ledger-folio text-ledger-ink-secondary group-hover:border-ledger-accent-border group-hover:text-ledger-accent"
+                        )}
+                      >
+                        {c.citation_index}
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <p className="truncate text-xs font-medium text-ledger-ink">
+                          {c.doc_title}
+                        </p>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-ledger-ink-tertiary">
+                          <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                            <FileText className="size-3 text-ledger-ink-muted" />
+                            <span>p.{c.page_number}</span>
+                            <span className="font-sans text-ledger-ink-muted">
+                              {DOC_TYPE_LABELS[c.doc_type]}
+                            </span>
+                          </span>
+                          <span className="font-mono font-medium tabular-nums text-status-verified">
+                            {pct}%
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Telemetry Pill Bar */}
+      {/* Hairline Telemetry & Stage Waterfall Footer */}
       <TelemetryBar telemetry={response.telemetry} />
     </article>
   );

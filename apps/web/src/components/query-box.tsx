@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Loader2, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
 
 import { DOC_TYPE_LABELS, type DocType } from "@/lib/types";
@@ -16,35 +16,35 @@ const ALL_DOC_TYPES: DocType[] = [
 const SAMPLE_PROMPTS: Record<string, { label: string; query: string }[]> = {
   "acme-corp": [
     {
-      label: "Tier-2: ERR_SIG_4092 + Rollback",
+      label: "ERR_SIG_4092 + Rollback",
       query:
         "Why does webhook signature verification fail with ERR_SIG_4092 on SDK v2.4.1, and what is the rollback procedure?",
     },
     {
-      label: "RFP: Section 4.2 + HIPAA Trap",
+      label: "Section 4.2 + HIPAA BAA",
       query:
         "Under Section 4.2 of the Enterprise SLA, is AES-256 encryption enforced at rest, what is the Sev-1 RTO, and is a HIPAA BAA included by default?",
     },
     {
-      label: "Abstention: FedRAMP High",
+      label: "FedRAMP High (Abstain)",
       query: "Does CloudPulse currently hold FedRAMP High authorization?",
     },
     {
-      label: "Isolation Probe: ERR_GLOBEX_9901",
+      label: "ERR_GLOBEX_9901 (Isolation)",
       query: "How do I resolve ERR_GLOBEX_9901?",
     },
   ],
   "globex-io": [
     {
-      label: "Globex HSM: ERR_GLOBEX_9901",
+      label: "ERR_GLOBEX_9901 HSM",
       query: "How do I resolve ERR_GLOBEX_9901?",
     },
     {
-      label: "Globex Sovereign Enclave RTO",
+      label: "Dublin Sovereign Enclave RTO",
       query: "What region and Sev-1 RTO guarantee apply to Globex IO?",
     },
     {
-      label: "Relay Secret Rotation Cadence",
+      label: "Relay Key Rotation",
       query: "How often does Globex IO rotate webhook relay keys and what command is used?",
     },
   ],
@@ -70,10 +70,11 @@ export function QueryBox({
   onSubmit,
 }: QueryBoxProps) {
   const prompts = SAMPLE_PROMPTS[tenantId] ?? SAMPLE_PROMPTS["acme-corp"];
+  const canSubmit = !isLoading && query.trim().length >= 3;
 
   const handleFormSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!isLoading && query.trim().length >= 3) {
+    if (canSubmit) {
       onSubmit();
     }
   };
@@ -81,43 +82,51 @@ export function QueryBox({
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && query.trim().length >= 3) {
+      if (canSubmit) {
         onSubmit();
       }
     }
   };
 
   return (
-    <section className="space-y-3">
+    <section aria-label="Evidence query composer" className="flex flex-col gap-3">
+      {/* Concentric Composer Shell: outer rounded-2xl (p-2) -> inner inset well rounded-xl */}
       <form
         onSubmit={handleFormSubmit}
-        className="rounded-xl border border-border bg-card p-3 shadow-xs focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15"
+        className="ledger-folio flex flex-col gap-2 rounded-2xl p-2"
       >
-        <textarea
-          rows={3}
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isLoading}
-          placeholder={`Ask a compliance or Tier-2 support question scoped to ${tenantId}...`}
-          aria-label="Ask CiteOps a question"
-          className="w-full resize-none bg-transparent px-1 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none sm:text-[15px]"
-        />
+        <div className="rounded-xl border border-ledger-hairline bg-ledger-inset px-3.5 py-2.5 transition-colors duration-150 focus-within:border-ledger-accent-border">
+          <textarea
+            rows={3}
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading}
+            placeholder={`Ask a Tier-2 incident or security compliance question for ${tenantId}...`}
+            aria-label="Ask CiteOps a question"
+            className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-ledger-ink placeholder:text-ledger-ink-muted focus:outline-none disabled:opacity-60"
+          />
+        </div>
 
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
-          {/* Category Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5">
+        {/* Bottom Control Strip: Document Category Scope + Submit Action */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1.5 pb-1 pt-0.5">
+          <div
+            role="group"
+            aria-label="Filter document categories"
+            className="flex flex-wrap items-center gap-1"
+          >
             <button
               type="button"
+              aria-pressed={selectedDocTypes.length === 0}
               onClick={() => onToggleDocType(null)}
               className={cn(
-                "cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                "cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition-colors duration-150 active:scale-[0.98]",
                 selectedDocTypes.length === 0
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-border bg-background text-muted-foreground hover:bg-muted"
+                  ? "bg-ledger-accent-tint text-ledger-accent"
+                  : "text-ledger-ink-tertiary hover:bg-ledger-hairline-subtle hover:text-ledger-ink"
               )}
             >
-              All Docs
+              All docs
             </button>
             {ALL_DOC_TYPES.map((dt) => {
               const active = selectedDocTypes.includes(dt);
@@ -125,12 +134,13 @@ export function QueryBox({
                 <button
                   key={dt}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => onToggleDocType(dt)}
                   className={cn(
-                    "cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    "cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition-colors duration-150 active:scale-[0.98]",
                     active
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-background text-muted-foreground hover:bg-muted"
+                      ? "bg-ledger-accent-tint text-ledger-accent"
+                      : "text-ledger-ink-tertiary hover:bg-ledger-hairline-subtle hover:text-ledger-ink"
                   )}
                 >
                   {DOC_TYPE_LABELS[dt]}
@@ -139,32 +149,34 @@ export function QueryBox({
             })}
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading || query.trim().length < 3}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Searching & Verifying...</span>
-              </>
-            ) : (
-              <>
-                <span>Ask CiteOps</span>
-                <ArrowUp className="h-3.5 w-3.5" />
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2.5">
+            <span className="hidden font-mono text-[11px] text-ledger-ink-muted sm:inline">
+              Enter to search
+            </span>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-ledger-accent px-3.5 text-xs font-semibold text-ledger-accent-ink transition-colors duration-150 hover:bg-ledger-accent-hover active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Verifying</span>
+                </>
+              ) : (
+                <>
+                  <span>Search</span>
+                  <ArrowUp className="size-3.5" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
 
-      {/* Clickable Sample Prompt Chips */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-          <Sparkles className="h-3 w-3" />
-          Try:
-        </span>
+      {/* Tenant-Scoped Quick Scenarios (auto-resets category filter to All docs) */}
+      <div className="flex flex-wrap items-center gap-1.5 px-0.5">
+        <span className="text-xs text-ledger-ink-muted">Scenarios:</span>
         {prompts.map((sample) => (
           <button
             key={sample.label}
@@ -175,7 +187,7 @@ export function QueryBox({
               onQueryChange(sample.query);
               onSubmit(sample.query, []);
             }}
-            className="cursor-pointer rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+            className="cursor-pointer rounded-lg border border-ledger-hairline bg-ledger-folio px-2.5 py-1 text-xs font-medium text-ledger-ink-secondary transition-colors duration-150 hover:border-ledger-hairline-strong hover:text-ledger-ink active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
           >
             {sample.label}
           </button>
