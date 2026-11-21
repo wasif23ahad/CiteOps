@@ -1,0 +1,122 @@
+name: CiteOps Tier-2 Full 50-Q Eval Benchmark
+
+on:
+  schedule:
+    # Nightly at 03:00 UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Evaluation suite to run"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - smoke
+      target_url:
+        description: "Target ('inprocess' or live API base URL like https://citeops.onrender.com)"
+        required: false
+        default: "inprocess"
+        type: string
+      delay_seconds:
+        description: "Pacing delay in seconds between queries (free-tier RPM safety)"
+        required: false
+        default: "2.5"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Full Golden RAG Benchmark & Scorecard
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17
+        env:
+          POSTGRES_USER: citeops
+          POSTGRES_PASSWORD: citeops_dev_password
+          POSTGRES_DB: citeops
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U citeops -d citeops"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      APP_ENV: development
+      DATABASE_URL: postgresql://citeops_app:citeops_app_dev_password@localhost:5433/citeops
+      DATABASE_ADMIN_URL: postgresql://citeops:citeops_dev_password@localhost:5433/citeops
+      REDIS_URL: redis://localhost:6380/0
+      RERANKER_PROFILE: light
+      EMBEDDING_PROVIDER: gemini
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CITEOPS_INTERNAL_API_KEY: ${{ secrets.CITEOPS_INTERNAL_API_KEY }}
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify GEMINI_API_KEY secret
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::GEMINI_API_KEY secret must be configured for Tier-2 evaluation runs."
+            exit 1
+          fi
+
+      - name: Set up uv & Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install backend + evals dependencies
+        run: uv sync --directory apps/api --group dev --group evals
+
+      - name: Run PostgreSQL 17 + RLS migrations
+        if: ${{ (inputs.target_url || 'inprocess') == 'inprocess' }}
+        run: uv run --directory apps/api citeops-migrate
+
+      - name: Run paced benchmark and generate scorecard
+        id: run_eval
+        run: |
+          SUITE="${{ inputs.suite || 'full' }}"
+          TARGET="${{ inputs.target_url || 'inprocess' }}"
+          DELAY="${{ inputs.delay_seconds || '2.5' }}"
+          uv run --directory apps/api python ../../evals/run_benchmark.py \
+            --suite "$SUITE" \
+            --target "$TARGET" \
+            --delay-seconds "$DELAY" \
+            --max-concurrent 2 \
+            --output-dir ../../evals/reports
+
+      - name: Publish Markdown scorecard to job summary
+        if: always()
+        run: |
+          SUITE="${{ inputs.suite || 'full' }}"
+          if [ -f "evals/reports/scorecard_${SUITE}.md" ]; then
+            cat "evals/reports/scorecard_${SUITE}.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload evaluation scorecard artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: citeops-eval-scorecard-${{ inputs.suite || 'full' }}
+          path: evals/reports/
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,185 @@
+name: CiteOps Tier-1 CI Gate
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend-checks:
+    name: Backend Lint, Typecheck, RLS & 50-Q Retrieval Gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17
+        env:
+          POSTGRES_USER: citeops
+          POSTGRES_PASSWORD: citeops_dev_password
+          POSTGRES_DB: citeops
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U citeops -d citeops"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      APP_ENV: development
+      DATABASE_URL: postgresql://citeops_app:citeops_app_dev_password@localhost:5433/citeops
+      DATABASE_ADMIN_URL: postgresql://citeops:citeops_dev_password@localhost:5433/citeops
+      REDIS_URL: redis://localhost:6380/0
+      RERANKER_PROFILE: light
+      EMBEDDING_PROVIDER: gemini
+      GEMINI_API_KEY: ""
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv & Python 3.12
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install backend dependencies (dev group)
+        run: uv sync --directory apps/api --group dev
+
+      - name: Ruff lint
+        run: uv run --directory apps/api ruff check app tests ../../scripts/seed_demo.py ../../evals
+
+      - name: Mypy static typecheck
+        run: uv run --directory apps/api mypy app tests
+
+      - name: Run PostgreSQL 17 + RLS migrations
+        run: uv run --directory apps/api citeops-migrate
+
+      - name: Run unit, RLS isolation, hybrid RRF, cache & metrics tests
+        run: uv run --directory apps/api pytest -v
+
+      - name: Run 50-Q deterministic Context Recall@5 & 0% leakage gate (0 LLM calls)
+        run: uv run --directory apps/api pytest -v -s ../../evals/test_retrieval_deterministic.py
+
+  frontend-checks:
+    name: Frontend Typecheck, Lint & Production Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: ESLint check
+        run: npm run lint
+
+      - name: Next.js production build
+        run: npm run build
+
+  deepeval-smoke-gate:
+    name: Tier-1 DeepEval Smoke Gate (12 Stratified Qs)
+    runs-on: ubuntu-latest
+    needs: [backend-checks]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17
+        env:
+          POSTGRES_USER: citeops
+          POSTGRES_PASSWORD: citeops_dev_password
+          POSTGRES_DB: citeops
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U citeops -d citeops"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      APP_ENV: development
+      DATABASE_URL: postgresql://citeops_app:citeops_app_dev_password@localhost:5433/citeops
+      DATABASE_ADMIN_URL: postgresql://citeops:citeops_dev_password@localhost:5433/citeops
+      REDIS_URL: redis://localhost:6380/0
+      RERANKER_PROFILE: light
+      EMBEDDING_PROVIDER: gemini
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check GEMINI_API_KEY availability
+        id: check_key
+        run: |
+          if [ -n "$GEMINI_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "GEMINI_API_KEY secret is not set; skipping DeepEval smoke gate."
+          fi
+
+      - name: Set up uv & Python 3.12
+        if: steps.check_key.outputs.enabled == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install backend + evals dependencies
+        if: steps.check_key.outputs.enabled == 'true'
+        run: uv sync --directory apps/api --group dev --group evals
+
+      - name: Run PostgreSQL 17 + RLS migrations
+        if: steps.check_key.outputs.enabled == 'true'
+        run: uv run --directory apps/api citeops-migrate
+
+      - name: Run 12-Q DeepEval smoke gate (Faithfulness >= 0.90, Abstention = 100%)
+        if: steps.check_key.outputs.enabled == 'true'
+        run: >
+          uv run --directory apps/api pytest -v -s
+          ../../evals/test_rag_quality.py
+          --suite smoke
+          --delay-seconds 1.5

@@ -29,6 +29,9 @@ dev = [
     "ruff>=0.9.0,<1.0.0",
     "mypy>=1.14.0,<2.0.0",
 ]
+evals = [
+    "deepeval>=2.0.0,<5.0.0",
+]
 
 [project.scripts]
 citeops-api = "app.cli:serve"

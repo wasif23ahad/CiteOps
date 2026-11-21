@@ -3,7 +3,7 @@
 **Product:** CiteOps — Multi-Tenant Tier-2 Support & Security Compliance Knowledge Engine  
 **Source Specs:** [Problem.md](./Problem.md) | [PRD.md](./PRD.md) | [Architecture.md](./Architecture.md)  
 **Execution Model:** 8 Vertical, Independently Verifiable Phases (Phases 0–7)  
-**Last Updated:** 2026-11-21  
+**Last Updated:** 2026-11-22  
 
 ---
 
@@ -17,7 +17,7 @@
 | **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[x] Complete` |
 | **Phase 4** | Semantic Cache, Rate Limiter, Metrics & Langfuse | Day 2 (PM) | Versioned L1/L2 Redis cache, Lua rate limiter, `/v1/metrics/summary`, OTel/Langfuse tracing | `[x] Complete` |
 | **Phase 5** | Perplexity-Style Next.js 16 Frontend | Day 3 (AM–Mid) | BFF proxy, Citation Workspace, Source Drawer, Telemetry Bar, Docs & Metrics pages | `[x] Complete` |
-| **Phase 6** | Golden Evals (`DeepEval`) & Two-Tier CI Gate | Day 3 (PM) | 50-Q dataset, deterministic Recall@5, paced DeepEval smoke/full suites, GitHub Actions | `[ ] Pending` |
+| **Phase 6** | Golden Evals (`DeepEval`) & Two-Tier CI Gate | Day 3 (PM) | 50-Q dataset, deterministic Recall@5, paced DeepEval smoke/full suites, GitHub Actions | `[x] Complete` |
 | **Phase 7** | `$0/month` Cloud Deployment & Benchmark Polish | Day 4 | Live Neon + Upstash + Render/HF Spaces + Vercel + Langfuse + `README.md` scorecard | `[ ] Pending` |
 
 ---
@@ -201,19 +201,20 @@
 **Objective:** Operationalize Eval-Driven Development with a 50-question golden benchmark and free-tier-safe automated regression gates in GitHub Actions.
 
 ### Deliverables
-- [ ] **Golden Benchmark Dataset (`evals/datasets/golden_50.jsonl`):**
+- [x] **Golden Benchmark Dataset (`evals/datasets/golden_50.jsonl`):**
   - 50 curated evaluation records across `acme-corp` & `globex-io`:
     - 15 exact error-code / SDK version lookups
     - 15 enterprise RFP / SOC 2 / SLA policy compliance questions (including nuanced conditional clauses like HIPAA BAA addendum)
     - 10 multi-passage / table synthesis questions
     - 10 out-of-scope abstention & cross-tenant isolation probes
-- [ ] **Evaluation Harnesses (`evals/`):**
-  - `evals/test_retrieval_deterministic.py` (0 LLM calls; verifies Context Recall@5 `>= 0.85` & `0%` cross-tenant leakage across all 50 Qs)
-  - `evals/test_rag_quality.py` (`DeepEval` configured with `GeminiModel(model="gemini-3.5-flash-lite")`, `max_concurrent=2` + retry backoff; `--suite smoke` = 12 stratified Qs; `--suite full` = 50 Qs; thresholds: Faithfulness `>= 0.90`, Answer Relevancy `>= 0.85`, Abstention Accuracy `== 1.0`)
-  - `evals/run_benchmark.py` (CLI generating Markdown & JSON scorecards with accuracy metrics + cache-hit/miss p50/p95 latency)
-- [ ] **GitHub Actions Workflows (`.github/workflows/`):**
-  - `ci.yml` (Tier-1 PR Gate: `ruff`, `mypy`, `eslint`, `tsc`, Postgres+Redis service containers, unit + RLS integration tests, 50-Q deterministic Recall@5 gate, and 12-Q DeepEval smoke gate)
-  - `eval_full.yml` (Tier-2 Nightly / `workflow_dispatch`: paced 50-Q DeepEval benchmark publishing Markdown job summary & JSON artifact)
+- [x] **Evaluation Harnesses (`evals/`):**
+  - `evals/conftest.py`, `evals/loader.py`, and `evals/harness.py` (shared corpus auto-seeder, deterministic offline hash embedder for zero-secret CI PRs, `SlidingWindowRPMGate` + `retryDelay` pacer, and `PacedGeminiJudge`)
+  - `evals/test_retrieval_deterministic.py` (0 LLM calls; verifies Context Recall@5 `>= 0.85` & `0%` cross-tenant leakage across all 50 Qs — verified `0.9750` Recall@5 and `0/50` leakage in both live and offline CI modes)
+  - `evals/test_rag_quality.py` (`DeepEval` configured with `GeminiModel(model="gemini-3.5-flash-lite")`, shared RPM gate + retry backoff; `--suite smoke` = 12 stratified Qs; `--suite full` = 50 Qs; thresholds: Faithfulness `>= 0.90`, Answer Relevancy `>= 0.85`, Contextual Recall `>= 0.85`, Abstention Accuracy `== 1.0`)
+  - `evals/run_benchmark.py` (CLI generating Markdown & JSON scorecards with accuracy metrics + cold-miss vs. warm L1 cache-hit p50/p95 latency; supports `--target inprocess` and remote HTTP `--target <url>`)
+- [x] **GitHub Actions Workflows (`.github/workflows/`):**
+  - `ci.yml` (Tier-1 PR Gate: `ruff`, `mypy`, `eslint`, `tsc`, `next build`, Postgres 17 + Redis 8 service containers, unit + RLS integration tests, 50-Q deterministic Recall@5 gate, and 12-Q DeepEval smoke gate)
+  - `eval_full.yml` (Tier-2 Nightly at `03:00 UTC` / `workflow_dispatch`: paced 50-Q DeepEval benchmark publishing Markdown `$GITHUB_STEP_SUMMARY` & JSON/Markdown artifacts)
 
 ### Exit Gate & Verification
 1. `pytest evals/test_retrieval_deterministic.py` achieves Context Recall@5 `>= 0.85` and `0%` leakage.
