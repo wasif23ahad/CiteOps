@@ -11,18 +11,25 @@ from fastapi.responses import JSONResponse
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
+from app.adapters.audit_postgres import PostgresAuditRepository
 from app.adapters.corpus_version import CorpusVersionStore
 from app.adapters.embeddings_gemini import create_embedding_adapter
+from app.adapters.llm_router import ResilientLLMRouter
 from app.adapters.parser_pymupdf import PyMuPDFDocumentParser
 from app.adapters.repo_postgres import PostgresDocumentRepository
+from app.adapters.reranker_fastembed import FastEmbedReranker
+from app.adapters.retriever_postgres import PostgresHybridRetriever
 from app.api.v1.documents import router as documents_router
 from app.api.v1.health import router as health_router
 from app.api.v1.ingest import router as ingest_router
+from app.api.v1.query import router as query_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger, request_id_ctx
 from app.db.pool import create_db_pool
 from app.services.chunker import StructureAwareChunker
 from app.services.ingestion import DocumentLifecycleService, IngestionOrchestrator
+from app.services.query import QueryOrchestrator
+from app.services.verifier import CitationVerifierAndHydrator
 
 logger = get_logger(__name__)
 
@@ -64,7 +71,20 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     if db_pool is not None:
         doc_repo = PostgresDocumentRepository(db_pool)
+        audit_repo = PostgresAuditRepository(db_pool)
+        retriever = PostgresHybridRetriever(db_pool)
+        reranker = FastEmbedReranker(
+            model_name=settings.reranker_model_name,
+            cpu_semaphore=cpu_semaphore,
+        )
+        llm_router = ResilientLLMRouter(settings)
+        verifier = CitationVerifierAndHydrator()
+
         app.state.document_repo = doc_repo
+        app.state.audit_repo = audit_repo
+        app.state.retriever = retriever
+        app.state.reranker = reranker
+        app.state.llm_router = llm_router
         app.state.document_lifecycle_service = DocumentLifecycleService(
             repo=doc_repo,
             corpus_versions=corpus_versions,
@@ -80,6 +100,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
                 repo=doc_repo,
                 corpus_versions=corpus_versions,
                 cpu_semaphore=cpu_semaphore,
+            )
+            app.state.query_orchestrator = QueryOrchestrator(
+                settings=settings,
+                embedder=embedder,
+                retriever=retriever,
+                reranker=reranker,
+                llm=llm_router,
+                verifier=verifier,
+                audit_repo=audit_repo,
             )
         except Exception as exc:
             logger.warning("embedder_init_warning", error=str(exc))
@@ -115,6 +144,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.redis = None
     app.state.ingestion_orchestrator = None
     app.state.document_lifecycle_service = None
+    app.state.query_orchestrator = None
 
     app.add_middleware(
         CORSMiddleware,
@@ -182,6 +212,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router, prefix=resolved_settings.api_v1_prefix)
     app.include_router(ingest_router, prefix=resolved_settings.api_v1_prefix)
     app.include_router(documents_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(query_router, prefix=resolved_settings.api_v1_prefix)
     return app
 
 

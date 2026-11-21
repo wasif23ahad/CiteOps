@@ -14,7 +14,7 @@
 | **Phase 0** | Monorepo Scaffold, Config & Local Infra | Day 1 (AM) | Working `docker-compose`, FastAPI `/v1/health`, Next.js 16 skeleton | `[x] Complete` |
 | **Phase 1** | Postgres 17 Schema, RLS & Hexagonal Core | Day 1 (Mid) | `pgvector 0.8.6` + RLS migrations, domain ports, Pydantic contracts | `[x] Complete` |
 | **Phase 2** | Idempotent Ingestion, Embeddings & Seed Data | Day 1 (PM) | `POST /v1/ingest`, `/v1/documents`, `pymupdf4llm`, `gemini-embedding-001`, demo corpus | `[x] Complete` |
-| **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[ ] Pending` |
+| **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[x] Complete` |
 | **Phase 4** | Semantic Cache, Rate Limiter, Metrics & Langfuse | Day 2 (PM) | Versioned L1/L2 Redis cache, Lua rate limiter, `/v1/metrics/summary`, OTel/Langfuse tracing | `[ ] Pending` |
 | **Phase 5** | Perplexity-Style Next.js 16 Frontend | Day 3 (AM–Mid) | BFF proxy, Citation Workspace, Source Drawer, Telemetry Bar, Docs & Metrics pages | `[ ] Pending` |
 | **Phase 6** | Golden Evals (`DeepEval`) & Two-Tier CI Gate | Day 3 (PM) | 50-Q dataset, deterministic Recall@5, paced DeepEval smoke/full suites, GitHub Actions | `[ ] Pending` |
@@ -113,25 +113,26 @@
 **Objective:** Implement the core intelligence pipeline for `POST /v1/query`: single-CTE hybrid search with `pgvector 0.8` iterative scans, calibrated ONNX cross-encoder reranking, resilient free-tier LLM routing, deterministic citation verification, and dual-gate abstention.
 
 ### Deliverables
-- [ ] **Hybrid Retrieval (`HybridRetrieverPort`):**
-  - `app/adapters/retriever_postgres.py`: single-CTE SQL executing `SET LOCAL hnsw.iterative_scan = relaxed_order` + `hnsw.ef_search = 64`, fusing Top-50 dense cosine + Top-50 dual-dictionary `tsvector` (`simple` + `english`) via RRF ($k = 60$) -> Top-25 candidates (`RERANK_CANDIDATE_COUNT`).
-- [ ] **Calibrated Reranker (`RerankerPort`):**
+- [x] **Hybrid Retrieval (`HybridRetrieverPort`):**
+  - `app/adapters/retriever_postgres.py`: single-CTE SQL executing `SET LOCAL hnsw.iterative_scan = relaxed_order` + `hnsw.ef_search = 64`, fusing Top-50 dense cosine + Top-50 OR-tokenized dual-dictionary `tsvector` (`simple` + `english`) via RRF ($k = 60$) -> Top-25 candidates (`RERANK_CANDIDATE_COUNT`).
+- [x] **Calibrated Reranker (`RerankerPort`):**
   - `app/adapters/reranker_fastembed.py`: supports `RERANKER_PROFILE=light` (`Xenova/ms-marco-MiniLM-L-6-v2`) and `base` (`BAAI/bge-reranker-base`); runs ONNX inside `asyncio.to_thread` bounded by `asyncio.Semaphore(2)`; normalizes raw logits via sigmoid $1 / (1 + e^{-x})$.
-- [ ] **Resilient Free-Tier LLM Router (`GroundedLLMPort`):**
+- [x] **Resilient Free-Tier LLM Router (`GroundedLLMPort`):**
   - `app/adapters/llm_router.py`:
-    - Primary: `gemini-3.8-flash` (`temperature=0.0`, `thinking_level="low"`, Pydantic `GroundedLLMOutput` structured JSON)
+    - Primary: `gemini-3.8-flash` (`temperature=0.0`, `thinking_level="low"`, Pydantic `GroundedLLMOutputSchema` structured JSON)
     - Failover 1: `gemini-3.5-flash-lite` on `429`/`503`/timeout
     - Failover 2: Optional Groq (`llama-3.3-70b-versatile`) with context trimming (`top_k <= 3`) to fit 8k–12k TPM caps
     - Privacy Mode: Optional `LLM_PROVIDER=ollama` local adapter
-- [ ] **Deterministic Citation Verifier & Query Orchestrator:**
+- [x] **Deterministic Citation Verifier, Audit Repo & Query Orchestrator:**
   - `app/services/verifier.py` (`CitationVerifierAndHydrator`: parses `[n]` tags, rejects out-of-bounds citations, verifies quote grounding against `chunk.content`, hydrates `document_id`, `doc_title`, `doc_type`, `version`, `page_number`, `section_path`, `rerank_score` strictly from DB records, auto-downgrades to `insufficient_evidence` on grounding failure)
+  - `app/adapters/audit_postgres.py` (`PostgresAuditRepository` under RLS)
   - `app/services/query.py` (`QueryOrchestrator` implementing Gate-1 pre-LLM abstention on `max(rerank_score) < MIN_RERANK_SCORE`, Gate-2 LLM abstention, and `query_audit_logs` persistence)
   - `app/api/v1/query.py` (`POST /v1/query`)
-- [ ] **Tests:**
-  - `test_hybrid_rrf.py` (exact error code `ERR_SIG_4092` & `Section 4.2` recall + `doc_types` filtering)
+- [x] **Tests:**
+  - `test_hybrid_rrf.py` (exact error code `ERR_SIG_4092` & `Section 4.2` recall + `doc_types` filtering + RLS isolation)
   - `test_reranker_calibration.py` (sigmoid bounds `(0, 1)` and candidate ordering)
   - `test_citation_verifier.py` (dangling `[9]`, zero citations, DB metadata hydration, quote fallback)
-  - `test_abstention_gates.py` (Gate-1 zero-LLM-call abstention + Gate-2 partial-match abstention)
+  - `test_abstention_gates.py` (Gate-1 zero-LLM-call abstention + Gate-2 verified answer + `503 Retry-After`)
 
 ### Exit Gate & Verification
 1. Querying `"Why does webhook signature verification fail with ERR_SIG_4092 on SDK v2.4.1?"` under `acme-corp` returns `status: "answered"` with verified inline `[1]` citation hydrated with exact `doc_title`, `page_number`, and `rerank_score`.
