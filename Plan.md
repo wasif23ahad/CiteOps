@@ -16,7 +16,7 @@
 | **Phase 2** | Idempotent Ingestion, Embeddings & Seed Data | Day 1 (PM) | `POST /v1/ingest`, `/v1/documents`, `pymupdf4llm`, `gemini-embedding-001`, demo corpus | `[x] Complete` |
 | **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[x] Complete` |
 | **Phase 4** | Semantic Cache, Rate Limiter, Metrics & Langfuse | Day 2 (PM) | Versioned L1/L2 Redis cache, Lua rate limiter, `/v1/metrics/summary`, OTel/Langfuse tracing | `[x] Complete` |
-| **Phase 5** | Perplexity-Style Next.js 16 Frontend | Day 3 (AM–Mid) | BFF proxy, Citation Workspace, Source Drawer, Telemetry Bar, Docs & Metrics pages | `[ ] Pending` |
+| **Phase 5** | Perplexity-Style Next.js 16 Frontend | Day 3 (AM–Mid) | BFF proxy, Citation Workspace, Source Drawer, Telemetry Bar, Docs & Metrics pages | `[x] Complete` |
 | **Phase 6** | Golden Evals (`DeepEval`) & Two-Tier CI Gate | Day 3 (PM) | 50-Q dataset, deterministic Recall@5, paced DeepEval smoke/full suites, GitHub Actions | `[ ] Pending` |
 | **Phase 7** | `$0/month` Cloud Deployment & Benchmark Polish | Day 4 | Live Neon + Upstash + Render/HF Spaces + Vercel + Langfuse + `README.md` scorecard | `[ ] Pending` |
 
@@ -175,20 +175,20 @@
 **Objective:** Deliver a clean, responsive, citation-first technical UI wired through a secure Next.js BFF proxy.
 
 ### Deliverables
-- [ ] **BFF Proxy & Typed Client (`apps/web/src/`):**
-  - `app/api/citeops/[...path]/route.ts` (server-side proxy injecting `CITEOPS_INTERNAL_API_KEY`, supporting both JSON and `multipart/form-data` streaming)
-  - `lib/types.ts` & `lib/api.ts` (strict TypeScript types mirroring FastAPI schemas) + `components/providers.tsx` (TanStack Query v5 + theme toggle)
-- [ ] **Citation Workspace (`app/page.tsx`):**
-  - Top navigation + `TenantSelector` (`acme-corp`, `globex-io`) + `DocTypeFilterPills` (`all`, `api_docs`, `security_policy`, `sla_contract`, `runbook`)
-  - `QueryBox` with clickable sample RFP & Tier-2 incident prompt chips
-  - `AnswerCard`: safely tokenizes `[1]`, `[2]` markers into interactive `CitationBadge` pills; renders clear amber **Insufficient Evidence** panel with `missing_evidence_reason` when abstaining
-  - `TelemetryBar`: live `latency_ms`, `CACHE HIT (EXACT / SEMANTIC)` vs. `CACHE MISS` badge, `top_rerank_score`, active `model`, and `trace_id`
-  - `SourceDrawer`: slide-over / side panel highlighting active citation's `doc_title`, `version`, `doc_type`, `page_number`, `section_path`, calibrated `rerank_score`, and verbatim `excerpt`
-- [ ] **Knowledge Base Manager (`app/documents/page.tsx`):**
-  - `UploadModal` (drag-and-drop `.pdf`/`.md`, `doc_type`, `version`) displaying `indexed` chunk count vs. `skipped_unchanged` (`$0` badge)
+- [x] **BFF Proxy & Typed Client (`apps/web/src/`):**
+  - `lib/server-env.ts` & `app/api/citeops/[...path]/route.ts` (server-side proxy injecting `CITEOPS_INTERNAL_API_KEY` from env or repo-root `.env`, supporting both JSON and `multipart/form-data` uploads)
+  - `lib/types.ts`, `lib/api.ts`, `lib/tenant-context.tsx`, and `components/providers.tsx` (strict TypeScript contracts + TanStack Query v5 + persistent tenant workspace context)
+- [x] **Citation Workspace (`app/page.tsx`):**
+  - `components/app-shell.tsx`: Top navigation + live health pill + `TenantSelector` (`acme-corp`, `globex-io`)
+  - `components/query-box.tsx`: Multi-filter `doc_types` pills (`All`, `API Docs`, `Security Policy`, `SLA Contract`, `Runbook`) + tenant-aware clickable RFP & Tier-2 sample prompt chips
+  - `components/answer-card.tsx` & `components/citation-badge.tsx`: Safe React tokenization of `[1]`, `[2]` into clickable pills + Perplexity-style source cards strip + amber **Insufficient Evidence** panel with `missing_evidence_reason`
+  - `components/telemetry-bar.tsx`: live `latency_ms` (with retrieval/rerank/llm breakdown), `CACHE HIT (L1 EXACT / L2 SEMANTIC)` vs. `CACHE MISS` badge, `top_rerank_score`, active `model`, and `trace_id`
+  - `components/source-drawer.tsx`: slide-over inspector highlighting active citation's `doc_title`, `version`, `doc_type`, `page_number`, `section_path`, calibrated `rerank_score` bar, and verbatim `excerpt`
+- [x] **Knowledge Base Manager (`app/documents/page.tsx`):**
+  - `components/upload-modal.tsx` (drag-and-drop `.pdf`/`.md`/`.txt`, `doc_type`, `version`) displaying `indexed` chunk count vs. `skipped_unchanged` (`$0` badge)
   - Tenant document inventory table with SHA-256 hash preview, page/chunk counts, and `Delete` action with TanStack Query cache invalidation
-- [ ] **Metrics Dashboard (`app/metrics/page.tsx`):**
-  - Summary KPI cards (Total Queries, Cache Hit Rate L1/L2, Abstention Rate, p50/p95 Latency Hit vs. Miss, active reranker/LLM profile)
+- [x] **Metrics Dashboard (`app/metrics/page.tsx`):**
+  - Summary KPI cards (Total Queries, Cache Hit Rate L1/L2, Abstention Rate, p50/p95 Latency Hit vs. Miss, active reranker/LLM/RLS profile)
 
 ### Exit Gate & Verification
 1. `npm run lint`, `npx tsc --noEmit`, and `npm run build` succeed cleanly.
