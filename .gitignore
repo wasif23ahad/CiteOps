@@ -41,3 +41,4 @@ Thumbs.db
 # Eval outputs
 evals/reports/*.json
 evals/reports/*.md
+.agents
