@@ -1,0 +1,62 @@
+[project]
+name = "citeops-api"
+version = "0.1.0"
+description = "CiteOps Multi-Tenant Tier-2 Support & Security Compliance Knowledge Engine API"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115.0,<1.0.0",
+    "uvicorn[standard]>=0.32.0,<1.0.0",
+    "pydantic>=2.10.0,<3.0.0",
+    "pydantic-settings>=2.7.0,<3.0.0",
+    "psycopg[binary,pool]>=3.2.0,<4.0.0",
+    "pgvector>=0.3.6,<1.0.0",
+    "redis>=5.2.0,<7.0.0",
+    "google-genai>=1.10.0,<2.0.0",
+    "fastembed>=0.6.0,<1.0.0",
+    "pymupdf4llm>=0.0.17,<1.0.0",
+    "tenacity>=9.0.0,<10.0.0",
+    "structlog>=24.4.0,<26.0.0",
+    "langfuse>=3.0.0,<5.0.0",
+    "numpy>=2.0.0,<3.0.0",
+    "httpx>=0.28.0,<1.0.0",
+    "python-multipart>=0.0.18,<1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0,<10.0.0",
+    "pytest-asyncio>=0.25.0,<2.0.0",
+    "ruff>=0.9.0,<1.0.0",
+    "mypy>=1.14.0,<2.0.0",
+]
+
+[project.scripts]
+citeops-api = "app.cli:serve"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
