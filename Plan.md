@@ -13,7 +13,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | Monorepo Scaffold, Config & Local Infra | Day 1 (AM) | Working `docker-compose`, FastAPI `/v1/health`, Next.js 16 skeleton | `[x] Complete` |
 | **Phase 1** | Postgres 17 Schema, RLS & Hexagonal Core | Day 1 (Mid) | `pgvector 0.8.6` + RLS migrations, domain ports, Pydantic contracts | `[x] Complete` |
-| **Phase 2** | Idempotent Ingestion, Embeddings & Seed Data | Day 1 (PM) | `POST /v1/ingest`, `/v1/documents`, `pymupdf4llm`, `gemini-embedding-001`, demo corpus | `[ ] Pending` |
+| **Phase 2** | Idempotent Ingestion, Embeddings & Seed Data | Day 1 (PM) | `POST /v1/ingest`, `/v1/documents`, `pymupdf4llm`, `gemini-embedding-001`, demo corpus | `[x] Complete` |
 | **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[ ] Pending` |
 | **Phase 4** | Semantic Cache, Rate Limiter, Metrics & Langfuse | Day 2 (PM) | Versioned L1/L2 Redis cache, Lua rate limiter, `/v1/metrics/summary`, OTel/Langfuse tracing | `[ ] Pending` |
 | **Phase 5** | Perplexity-Style Next.js 16 Frontend | Day 3 (AM–Mid) | BFF proxy, Citation Workspace, Source Drawer, Telemetry Bar, Docs & Metrics pages | `[ ] Pending` |
@@ -84,22 +84,22 @@
 **Objective:** Deliver the complete ingestion & document lifecycle pipeline (PDF/Markdown parsing, structure-aware chunking, free-tier embeddings, SHA-256 deduplication, atomic writes) plus realistic multi-tenant seed documents.
 
 ### Deliverables
-- [ ] **Parsing & Structure-Aware Chunking:**
-  - `app/adapters/parser_pymupdf.py` (`pymupdf4llm` `page_chunks=True` for PDFs; heading-preserving Markdown/text parser)
+- [x] **Parsing & Structure-Aware Chunking:**
+  - `app/adapters/parser_pymupdf.py` (`pymupdf4llm` `page_chunks=True` for PDFs; heading- and page-marker-preserving Markdown/text parser)
   - `app/services/chunker.py` (hierarchical H1–H3 split, keeps Markdown tables & code fences intact up to `600`-token ceiling, `450`-token target with `65`-token overlap, prepends `[Document | Version | Section | Page N]` breadcrumb to `contextual_content`)
-- [ ] **Embedding Adapters (`EmbeddingPort`):**
-  - `app/adapters/embeddings_gemini.py` (`google-genai` `gemini-embedding-001`, `output_dimensionality=768`, L2 normalization, asymmetric `RETRIEVAL_DOCUMENT` vs. `RETRIEVAL_QUERY` formatting, batched calls with `tenacity` backoff)
-  - `app/adapters/embeddings_fastembed.py` (optional local/offline adapter for deterministic CI unit tests)
-- [ ] **Repository & Orchestrators:**
+- [x] **Embedding Adapters (`EmbeddingPort`):**
+  - `app/adapters/embeddings_gemini.py` (`google-genai` `gemini-embedding-001`, `output_dimensionality=768`, L2 normalization, asymmetric `RETRIEVAL_DOCUMENT` vs. `RETRIEVAL_QUERY` formatting, batched calls with `tenacity` backoff + optional `FastEmbedEmbeddingAdapter`)
+- [x] **Repository & Orchestrators:**
   - `app/adapters/repo_postgres.py` (SHA-256 fast-path lookup, single-tx document insert + optional active-version superseding + bulk chunk insert, list & cascade delete)
+  - `app/adapters/corpus_version.py` (atomic `INCR tenant:version:{tenant_id}` Redis helper with fail-open degradation)
   - `app/services/ingestion.py` (`IngestionOrchestrator` keeping parsing & embedding strictly outside DB transactions; `DocumentLifecycleService`)
   - `app/api/v1/ingest.py` (`POST /v1/ingest`) and `app/api/v1/documents.py` (`GET /v1/documents`, `DELETE /v1/documents/{document_id}`)
-- [ ] **Realistic Demo Corpus & Seed Script:**
-  - `scripts/demo_docs/` (curated Markdown/PDF files for `acme-corp`: *Webhook Integration & Error Reference v2.4* containing `ERR_SIG_4092` & `v2.4.1`, *Enterprise SLA Contract* with Section 4.2 AES-256 & 15-min Sev-1 RTO, *SOC 2 & ISO-27001 Security Policy* noting HIPAA BAA requires enterprise addendum, *Production Rollback Runbooks*; plus distinct private docs for `globex-io` to prove tenant isolation)
+- [x] **Realistic Demo Corpus & Seed Script:**
+  - `scripts/demo_docs/` (curated Markdown docs for `acme-corp`: *Webhook Integration & Error Reference v2.4.1* containing `ERR_SIG_4092` & `v2.4.1`, *Enterprise SLA Contract v3.2* with Section 4.2 AES-256 & 15-min Sev-1 RTO, *SOC 2 & ISO-27001 Security Policy v2.1* noting HIPAA BAA requires enterprise addendum, *Production Rollback Runbook v2.4*; plus distinct private docs for `globex-io` to prove tenant isolation)
   - `scripts/seed_demo.py` (idempotent CLI seeding both tenants via `/v1/ingest`)
-- [ ] **Tests:**
-  - `test_chunker.py` (verifies tables/code blocks aren't corrupted and page numbers/breadcrumbs persist)
-  - `test_ingest_idempotency.py` (verifies second identical upload returns `skipped_unchanged` with `0` embedding calls; verifying delete removes all chunks)
+- [x] **Tests:**
+  - `test_chunker.py` (verifies PDF page extraction, tables/code blocks aren't corrupted, and page numbers/breadcrumbs persist)
+  - `test_ingest_idempotency.py` (verifies second identical upload returns `skipped_unchanged` with `0` embedding calls; cross-tenant delete returns `404`; tenant delete cascades chunks)
 
 ### Exit Gate & Verification
 1. `python scripts/seed_demo.py` indexes both `acme-corp` and `globex-io`.

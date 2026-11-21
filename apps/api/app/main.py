@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 import time
 import uuid
@@ -10,10 +11,18 @@ from fastapi.responses import JSONResponse
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
+from app.adapters.corpus_version import CorpusVersionStore
+from app.adapters.embeddings_gemini import create_embedding_adapter
+from app.adapters.parser_pymupdf import PyMuPDFDocumentParser
+from app.adapters.repo_postgres import PostgresDocumentRepository
+from app.api.v1.documents import router as documents_router
 from app.api.v1.health import router as health_router
+from app.api.v1.ingest import router as ingest_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger, request_id_ctx
 from app.db.pool import create_db_pool
+from app.services.chunker import StructureAwareChunker
+from app.services.ingestion import DocumentLifecycleService, IngestionOrchestrator
 
 logger = get_logger(__name__)
 
@@ -27,6 +36,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     db_pool: AsyncConnectionPool | None = None
     redis_client: Redis | None = None
+    cpu_semaphore = asyncio.Semaphore(2)
 
     if settings.app_env != "test":
         db_pool = create_db_pool(settings)
@@ -47,12 +57,39 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.db_pool = db_pool
     app.state.redis = redis_client
+    app.state.cpu_semaphore = cpu_semaphore
+
+    corpus_versions = CorpusVersionStore(redis_client)
+    app.state.corpus_versions = corpus_versions
+
+    if db_pool is not None:
+        doc_repo = PostgresDocumentRepository(db_pool)
+        app.state.document_repo = doc_repo
+        app.state.document_lifecycle_service = DocumentLifecycleService(
+            repo=doc_repo,
+            corpus_versions=corpus_versions,
+        )
+
+        try:
+            embedder = create_embedding_adapter(settings)
+            app.state.embedder = embedder
+            app.state.ingestion_orchestrator = IngestionOrchestrator(
+                parser=PyMuPDFDocumentParser(),
+                chunker=StructureAwareChunker(),
+                embedder=embedder,
+                repo=doc_repo,
+                corpus_versions=corpus_versions,
+                cpu_semaphore=cpu_semaphore,
+            )
+        except Exception as exc:
+            logger.warning("embedder_init_warning", error=str(exc))
 
     logger.info(
         "app_startup_complete",
         environment=settings.app_env,
         llm_provider=settings.llm_provider,
         reranker_profile=settings.reranker_profile,
+        embedding_provider=settings.embedding_provider,
     )
     try:
         yield
@@ -76,6 +113,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = resolved_settings
     app.state.db_pool = None
     app.state.redis = None
+    app.state.ingestion_orchestrator = None
+    app.state.document_lifecycle_service = None
 
     app.add_middleware(
         CORSMiddleware,
@@ -141,6 +180,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     app.include_router(health_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(ingest_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(documents_router, prefix=resolved_settings.api_v1_prefix)
     return app
 
 
