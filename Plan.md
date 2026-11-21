@@ -12,7 +12,7 @@
 | Phase | Name | Target Window | Primary Outcome | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | Monorepo Scaffold, Config & Local Infra | Day 1 (AM) | Working `docker-compose`, FastAPI `/v1/health`, Next.js 16 skeleton | `[x] Complete` |
-| **Phase 1** | Postgres 17 Schema, RLS & Hexagonal Core | Day 1 (Mid) | `pgvector 0.8.6` + RLS migrations, domain ports, Pydantic contracts | `[ ] Pending` |
+| **Phase 1** | Postgres 17 Schema, RLS & Hexagonal Core | Day 1 (Mid) | `pgvector 0.8.6` + RLS migrations, domain ports, Pydantic contracts | `[x] Complete` |
 | **Phase 2** | Idempotent Ingestion, Embeddings & Seed Data | Day 1 (PM) | `POST /v1/ingest`, `/v1/documents`, `pymupdf4llm`, `gemini-embedding-001`, demo corpus | `[ ] Pending` |
 | **Phase 3** | Hybrid Retrieval, Reranker & Grounded Query | Day 1 (Eve) – Day 2 (AM) | Single-CTE RRF, ONNX reranker, Gemini 3.8 Flash router, Citation Verifier, Dual-Gate Abstention | `[ ] Pending` |
 | **Phase 4** | Semantic Cache, Rate Limiter, Metrics & Langfuse | Day 2 (PM) | Versioned L1/L2 Redis cache, Lua rate limiter, `/v1/metrics/summary`, OTel/Langfuse tracing | `[ ] Pending` |
@@ -57,7 +57,7 @@
 **Objective:** Lock in the database schema, database-enforced tenant isolation (PostgreSQL RLS), hexagonal domain interfaces (`Protocol`s), and strict Pydantic API contracts.
 
 ### Deliverables
-- [ ] **SQL Schema & Migrations (`apps/api/app/db/`):**
+- [x] **SQL Schema & Migrations (`apps/api/app/db/`):**
   - `migrations/001_init.sql`:
     - `CREATE EXTENSION IF NOT EXISTS vector;`
     - Non-`BYPASSRLS` runtime role `citeops_app` granted least-privilege `SELECT, INSERT, UPDATE, DELETE`
@@ -65,13 +65,13 @@
     - Indexes: HNSW (`vector_cosine_ops`, `m=16, ef_construction=64`), GIN (`search_tsv`), composite B-tree `(tenant_id, doc_type, document_id)`
     - `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` policies on `documents`, `document_chunks`, and `query_audit_logs`
   - `migrate.py` (idempotent migration runner tracking applied versions)
-  - `pool.py` (`psycopg_pool.AsyncConnectionPool` + `pgvector.psycopg.register_vector_async` + `tenant_transaction(tenant_id)` context manager executing `SET LOCAL app.current_tenant_id`)
-- [ ] **Hexagonal Domain & Contracts:**
+  - `pool.py` (`psycopg_pool.AsyncConnectionPool` + `pgvector.psycopg.register_vector_async` + `tenant_transaction(tenant_id)` context manager executing `SELECT set_config('app.current_tenant_id', %s, true)`)
+- [x] **Hexagonal Domain & Contracts:**
   - `app/domain/models.py` (internal immutable dataclasses: `ParsedPage`, `DocumentChunkDraft`, `RetrievedChunk`, `RerankedChunk`, `VerifiedCitation`)
   - `app/domain/ports.py` (`DocumentParserPort`, `EmbeddingPort`, `HybridRetrieverPort`, `RerankerPort`, `SemanticCachePort`, `GroundedLLMPort`, `DocumentRepoPort`, `AuditRepoPort`)
-  - `app/schemas/` (`ingest.py`, `query.py`, `documents.py`, `metrics.py`, `health.py`) with strict `tenant_id` regex validation (`^[a-z0-9][a-z0-9_-]{1,62}$`)
-- [ ] **Tests (`apps/api/tests/`):**
-  - `test_rls_isolation.py` (verifies `acme-corp` cannot read `globex-io` rows, unset `app.current_tenant_id` returns `0` rows, and `citeops_app` cannot bypass RLS)
+  - `app/schemas/` (`common.py`, `ingest.py`, `query.py`, `documents.py`, `metrics.py`, `health.py`) with strict `tenant_id` regex validation (`^[a-z0-9][a-z0-9_-]{1,62}$`)
+- [x] **Tests (`apps/api/tests/`):**
+  - `test_rls_isolation.py` & `test_schemas.py` (verifies `acme-corp` cannot read `globex-io` rows, unset `app.current_tenant_id` returns `0` rows, `citeops_app` cannot bypass RLS, and cross-tenant writes fail closed)
 
 ### Exit Gate & Verification
 1. Running `python -m app.db.migrate` twice succeeds idempotently.

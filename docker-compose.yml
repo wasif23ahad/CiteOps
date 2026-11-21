@@ -43,7 +43,7 @@ services:
       - path: ./.env
         required: false
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-citeops}:${POSTGRES_PASSWORD:-citeops_dev_password}@postgres:5432/${POSTGRES_DB:-citeops}
+      DATABASE_URL: postgresql://citeops_app:citeops_app_dev_password@postgres:5432/${POSTGRES_DB:-citeops}
       DATABASE_ADMIN_URL: postgresql://${POSTGRES_USER:-citeops}:${POSTGRES_PASSWORD:-citeops_dev_password}@postgres:5432/${POSTGRES_DB:-citeops}
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: http://localhost:3000

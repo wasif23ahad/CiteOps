@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     # Database (PostgreSQL 17 + pgvector >= 0.8.0)
-    database_url: str = "postgresql://citeops:citeops_dev_password@localhost:5433/citeops"
+    # Runtime uses non-BYPASSRLS `citeops_app` role; migrations use admin `citeops` role
+    database_url: str = (
+        "postgresql://citeops_app:citeops_app_dev_password@localhost:5433/citeops"
+    )
     database_admin_url: str = "postgresql://citeops:citeops_dev_password@localhost:5433/citeops"
     db_pool_min_size: int = Field(default=2, ge=1, le=20)
     db_pool_max_size: int = Field(default=10, ge=2, le=50)

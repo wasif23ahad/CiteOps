@@ -13,6 +13,7 @@ from redis.asyncio import Redis
 from app.api.v1.health import router as health_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger, request_id_ctx
+from app.db.pool import create_db_pool
 
 logger = get_logger(__name__)
 
@@ -28,13 +29,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     redis_client: Redis | None = None
 
     if settings.app_env != "test":
-        db_pool = AsyncConnectionPool(
-            conninfo=settings.database_url,
-            min_size=settings.db_pool_min_size,
-            max_size=settings.db_pool_max_size,
-            open=False,
-            kwargs={"autocommit": False, "prepare_threshold": 0},
-        )
+        db_pool = create_db_pool(settings)
         try:
             await db_pool.open(wait=False)
         except Exception as exc:
