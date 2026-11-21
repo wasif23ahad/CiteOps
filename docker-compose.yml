@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg17
+    container_name: citeops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-citeops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-citeops_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-citeops}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - citeops_pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/00_extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-citeops} -d ${POSTGRES_DB:-citeops}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    container_name: citeops-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - citeops_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: citeops-api
+    restart: unless-stopped
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-citeops}:${POSTGRES_PASSWORD:-citeops_dev_password}@postgres:5432/${POSTGRES_DB:-citeops}
+      DATABASE_ADMIN_URL: postgresql://${POSTGRES_USER:-citeops}:${POSTGRES_PASSWORD:-citeops_dev_password}@postgres:5432/${POSTGRES_DB:-citeops}
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: citeops-web
+    restart: unless-stopped
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      CITEOPS_API_URL: http://api:8000
+      CITEOPS_INTERNAL_API_KEY: ${CITEOPS_INTERNAL_API_KEY:-dev-internal-key-change-me}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+
+volumes:
+  citeops_pg_data:
+  citeops_redis_data:

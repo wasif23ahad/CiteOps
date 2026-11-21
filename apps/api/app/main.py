@@ -1,0 +1,152 @@
+import hmac
+import time
+import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from psycopg_pool import AsyncConnectionPool
+from redis.asyncio import Redis
+
+from app.api.v1.health import router as health_router
+from app.core.config import Settings, get_settings
+from app.core.logging import configure_logging, get_logger, request_id_ctx
+
+logger = get_logger(__name__)
+
+_PUBLIC_PATHS = frozenset({"/v1/health", "/docs", "/redoc", "/openapi.json"})
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    settings: Settings = app.state.settings
+    configure_logging(settings.log_level)
+
+    db_pool: AsyncConnectionPool | None = None
+    redis_client: Redis | None = None
+
+    if settings.app_env != "test":
+        db_pool = AsyncConnectionPool(
+            conninfo=settings.database_url,
+            min_size=settings.db_pool_min_size,
+            max_size=settings.db_pool_max_size,
+            open=False,
+            kwargs={"autocommit": False, "prepare_threshold": 0},
+        )
+        try:
+            await db_pool.open(wait=False)
+        except Exception as exc:
+            logger.warning("postgres_pool_init_warning", error=str(exc))
+
+        try:
+            redis_client = Redis.from_url(
+                settings.redis_url,
+                decode_responses=False,
+                socket_connect_timeout=2.0,
+                socket_timeout=2.0,
+            )
+        except Exception as exc:
+            logger.warning("redis_init_warning", error=str(exc))
+
+    app.state.db_pool = db_pool
+    app.state.redis = redis_client
+
+    logger.info(
+        "app_startup_complete",
+        environment=settings.app_env,
+        llm_provider=settings.llm_provider,
+        reranker_profile=settings.reranker_profile,
+    )
+    try:
+        yield
+    finally:
+        if redis_client is not None:
+            await redis_client.aclose()
+        if db_pool is not None:
+            await db_pool.close()
+        logger.info("app_shutdown_complete")
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    resolved_settings = settings or get_settings()
+
+    app = FastAPI(
+        title=resolved_settings.app_name,
+        version="0.1.0",
+        description="Multi-Tenant Tier-2 Support & Security Compliance Knowledge Engine",
+        lifespan=_lifespan,
+    )
+    app.state.settings = resolved_settings
+    app.state.db_pool = None
+    app.state.redis = None
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=resolved_settings.cors_origin_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.middleware("http")
+    async def request_context_and_auth_middleware(
+        request: Request, call_next: object
+    ) -> Response:
+        req_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+        token = request_id_ctx.set(req_id)
+        started = time.perf_counter()
+
+        try:
+            expected_key = resolved_settings.citeops_internal_api_key
+            if (
+                expected_key
+                and request.method != "OPTIONS"
+                and request.url.path not in _PUBLIC_PATHS
+            ):
+                provided_key = request.headers.get("X-Internal-API-Key", "")
+                if not hmac.compare_digest(provided_key, expected_key):
+                    return JSONResponse(
+                        status_code=401,
+                        content={
+                            "detail": "Missing or invalid internal API key",
+                            "request_id": req_id,
+                        },
+                        headers={"X-Request-ID": req_id},
+                    )
+
+            response: Response = await call_next(request)  # type: ignore[operator]
+            response.headers["X-Request-ID"] = req_id
+            elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+            logger.info(
+                "http_request",
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                latency_ms=elapsed_ms,
+            )
+            return response
+        finally:
+            request_id_ctx.reset(token)
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        req_id = request_id_ctx.get() or uuid.uuid4().hex
+        logger.error(
+            "unhandled_exception",
+            path=request.url.path,
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "request_id": req_id},
+            headers={"X-Request-ID": req_id},
+        )
+
+    app.include_router(health_router, prefix=resolved_settings.api_v1_prefix)
+    return app
+
+
+app = create_app()

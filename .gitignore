@@ -1,0 +1,43 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Python / uv
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+build/
+*.egg-info/
+
+# Local ML / ONNX Caches
+.cache/
+fastembed_cache/
+models_cache/
+
+# Node / Next.js
+apps/web/node_modules/
+apps/web/.next/
+apps/web/out/
+apps/web/coverage/
+apps/web/next-env.d.ts
+*.tsbuildinfo
+
+# Logs & OS
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Eval outputs
+evals/reports/*.json
+evals/reports/*.md
