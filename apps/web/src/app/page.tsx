@@ -60,13 +60,14 @@ export default function WorkspacePage() {
     );
   };
 
-  const handleSubmit = (overrideQuery?: string) => {
+  const handleSubmit = (overrideQuery?: string, overrideDocTypes?: DocType[]) => {
     const text = (overrideQuery ?? queryInput).trim();
     if (text.length < 3) return;
+    const effectiveDocTypes = overrideDocTypes ?? selectedDocTypes;
     queryMutation.mutate({
       tenant_id: tenantId,
       query: text,
-      doc_types: selectedDocTypes.length > 0 ? selectedDocTypes : null,
+      doc_types: effectiveDocTypes.length > 0 ? effectiveDocTypes : null,
       top_k: 5,
     });
   };

@@ -57,7 +57,7 @@ interface QueryBoxProps {
   selectedDocTypes: DocType[];
   onToggleDocType: (docType: DocType | null) => void;
   isLoading: boolean;
-  onSubmit: (queryText?: string) => void;
+  onSubmit: (queryText?: string, overrideDocTypes?: DocType[]) => void;
 }
 
 export function QueryBox({
@@ -171,8 +171,9 @@ export function QueryBox({
             type="button"
             disabled={isLoading}
             onClick={() => {
+              onToggleDocType(null);
               onQueryChange(sample.query);
-              onSubmit(sample.query);
+              onSubmit(sample.query, []);
             }}
             className="cursor-pointer rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
           >
