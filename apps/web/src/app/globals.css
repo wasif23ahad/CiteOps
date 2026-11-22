@@ -1,33 +1,137 @@
 @import "tailwindcss";
 
-:root {
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.96 0.005 260);
-  --muted-foreground: oklch(0.48 0.015 260);
-  --border: oklch(0.91 0.006 260);
-  --primary: oklch(0.24 0.03 255);
-  --primary-foreground: oklch(0.985 0 0);
-  --accent: oklch(0.94 0.015 250);
-  --accent-foreground: oklch(0.21 0.03 255);
+/*
+ * CiteOps Design System
+ * World: Legal-Engineering Evidence Ledger & Compliance Workbench
+ * Themes: "Obsidian Ledger" (dark) and "Archival Vellum" (light)
+ * Accent: Verdigris (verified grounding, attested citations, primary actions)
+ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Layered Obsidian Surfaces (whisper-quiet lightness steps, unified neutral-ink hue) */
+  --ledger-canvas: #0d0e11;
+  --ledger-rail: #111317;
+  --ledger-folio: #15181d;
+  --ledger-elevated: #1c2027;
+  --ledger-inset: #090a0d;
+
+  /* Four-Tier Ink Hierarchy (all >= 4.5:1 for body/meta on canvas & folio) */
+  --ledger-ink: #f3f2ed;
+  --ledger-ink-secondary: #b4b7bf;
+  --ledger-ink-tertiary: #878b96;
+  --ledger-ink-muted: #6b707c;
+
+  /* Hairline Borders (low-opacity rgba so structure recedes on squint) */
+  --ledger-hairline: rgba(243, 242, 237, 0.08);
+  --ledger-hairline-strong: rgba(243, 242, 237, 0.14);
+  --ledger-hairline-subtle: rgba(243, 242, 237, 0.05);
+
+  /* Signature Verdigris Accent (Verified Grounding & Primary Action) */
+  --ledger-accent: #2dd4a8;
+  --ledger-accent-hover: #3ee2b7;
+  --ledger-accent-ink: #071914;
+  --ledger-accent-tint: rgba(45, 212, 168, 0.11);
+  --ledger-accent-border: rgba(45, 212, 168, 0.28);
+
+  /* Semantic Status Vocabulary */
+  --status-verified: #2dd4a8;
+  --status-verified-tint: rgba(45, 212, 168, 0.1);
+  --status-verified-border: rgba(45, 212, 168, 0.26);
+
+  --status-abstained: #e7b047;
+  --status-abstained-tint: rgba(231, 176, 71, 0.1);
+  --status-abstained-border: rgba(231, 176, 71, 0.28);
+
+  --status-fault: #f07579;
+  --status-fault-tint: rgba(240, 117, 121, 0.1);
+  --status-fault-border: rgba(240, 117, 121, 0.28);
+
+  --status-info: #7ab8f5;
+  --status-info-tint: rgba(122, 184, 245, 0.1);
+  --status-info-border: rgba(122, 184, 245, 0.28);
+
+  /* Elevation Ring (dark mode collapses depth shadows to crisp 1px ring) */
+  --ledger-shadow-folio: 0 0 0 1px rgba(243, 242, 237, 0.07);
+  --ledger-shadow-overlay: 0 16px 40px -12px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(243, 242, 237, 0.12);
+
+  /* Tailwind/shadcn Semantic Bridge */
+  --background: var(--ledger-canvas);
+  --foreground: var(--ledger-ink);
+  --card: var(--ledger-folio);
+  --card-foreground: var(--ledger-ink);
+  --muted: var(--ledger-elevated);
+  --muted-foreground: var(--ledger-ink-tertiary);
+  --border: var(--ledger-hairline);
+  --primary: var(--ledger-accent);
+  --primary-foreground: var(--ledger-accent-ink);
+  --accent: var(--ledger-accent-tint);
+  --accent-foreground: var(--ledger-accent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.13 0.01 260);
-    --foreground: oklch(0.96 0.005 260);
-    --card: oklch(0.17 0.012 260);
-    --card-foreground: oklch(0.96 0.005 260);
-    --muted: oklch(0.22 0.015 260);
-    --muted-foreground: oklch(0.68 0.015 260);
-    --border: oklch(0.26 0.015 260);
-    --primary: oklch(0.75 0.14 235);
-    --primary-foreground: oklch(0.14 0.02 260);
-    --accent: oklch(0.23 0.02 255);
-    --accent-foreground: oklch(0.95 0.01 260);
-  }
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Archival Vellum Surfaces */
+  --ledger-canvas: #f6f5f1;
+  --ledger-rail: #f1efe9;
+  --ledger-folio: #ffffff;
+  --ledger-elevated: #ffffff;
+  --ledger-inset: #eeece5;
+
+  /* Four-Tier Archival Ink Hierarchy */
+  --ledger-ink: #14171c;
+  --ledger-ink-secondary: #434955;
+  --ledger-ink-tertiary: #606775;
+  --ledger-ink-muted: #767d8b;
+
+  /* Hairline Borders */
+  --ledger-hairline: rgba(20, 23, 28, 0.09);
+  --ledger-hairline-strong: rgba(20, 23, 28, 0.16);
+  --ledger-hairline-subtle: rgba(20, 23, 28, 0.05);
+
+  /* Signature Verdigris Accent (Deep Forest Verdigris >= 5.2:1 with white ink) */
+  --ledger-accent: #0d7a5f;
+  --ledger-accent-hover: #0a6850;
+  --ledger-accent-ink: #ffffff;
+  --ledger-accent-tint: rgba(13, 122, 95, 0.09);
+  --ledger-accent-border: rgba(13, 122, 95, 0.26);
+
+  /* Semantic Status Vocabulary */
+  --status-verified: #0d7a5f;
+  --status-verified-tint: rgba(13, 122, 95, 0.08);
+  --status-verified-border: rgba(13, 122, 95, 0.24);
+
+  --status-abstained: #9a5d07;
+  --status-abstained-tint: rgba(180, 114, 15, 0.09);
+  --status-abstained-border: rgba(180, 114, 15, 0.28);
+
+  --status-fault: #b52d34;
+  --status-fault-tint: rgba(181, 45, 52, 0.08);
+  --status-fault-border: rgba(181, 45, 52, 0.25);
+
+  --status-info: #1d5fa3;
+  --status-info-tint: rgba(29, 95, 163, 0.08);
+  --status-info-border: rgba(29, 95, 163, 0.24);
+
+  /* Layered Light-Mode Elevation */
+  --ledger-shadow-folio: 0 0 0 1px rgba(20, 23, 28, 0.07), 0 1px 2px -1px rgba(20, 23, 28, 0.06), 0 4px 12px -4px rgba(20, 23, 28, 0.05);
+  --ledger-shadow-overlay: 0 20px 44px -12px rgba(20, 23, 28, 0.16), 0 0 0 1px rgba(20, 23, 28, 0.1);
+
+  /* Tailwind/shadcn Semantic Bridge */
+  --background: var(--ledger-canvas);
+  --foreground: var(--ledger-ink);
+  --card: var(--ledger-folio);
+  --card-foreground: var(--ledger-ink);
+  --muted: var(--ledger-inset);
+  --muted-foreground: var(--ledger-ink-tertiary);
+  --border: var(--ledger-hairline);
+  --primary: var(--ledger-accent);
+  --primary-foreground: var(--ledger-accent-ink);
+  --accent: var(--ledger-accent-tint);
+  --accent-foreground: var(--ledger-accent);
 }
 
 @theme inline {
@@ -42,10 +146,149 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+
+  --color-ledger-canvas: var(--ledger-canvas);
+  --color-ledger-rail: var(--ledger-rail);
+  --color-ledger-folio: var(--ledger-folio);
+  --color-ledger-elevated: var(--ledger-elevated);
+  --color-ledger-inset: var(--ledger-inset);
+  --color-ledger-ink: var(--ledger-ink);
+  --color-ledger-ink-secondary: var(--ledger-ink-secondary);
+  --color-ledger-ink-tertiary: var(--ledger-ink-tertiary);
+  --color-ledger-ink-muted: var(--ledger-ink-muted);
+  --color-ledger-hairline: var(--ledger-hairline);
+  --color-ledger-hairline-strong: var(--ledger-hairline-strong);
+  --color-ledger-hairline-subtle: var(--ledger-hairline-subtle);
+  --color-ledger-accent: var(--ledger-accent);
+  --color-ledger-accent-hover: var(--ledger-accent-hover);
+  --color-ledger-accent-ink: var(--ledger-accent-ink);
+  --color-ledger-accent-tint: var(--ledger-accent-tint);
+  --color-ledger-accent-border: var(--ledger-accent-border);
+
+  --color-status-verified: var(--status-verified);
+  --color-status-verified-tint: var(--status-verified-tint);
+  --color-status-verified-border: var(--status-verified-border);
+  --color-status-abstained: var(--status-abstained);
+  --color-status-abstained-tint: var(--status-abstained-tint);
+  --color-status-abstained-border: var(--status-abstained-border);
+  --color-status-fault: var(--status-fault);
+  --color-status-fault-tint: var(--status-fault-tint);
+  --color-status-fault-border: var(--status-fault-border);
+  --color-status-info: var(--status-info);
+  --color-status-info-tint: var(--status-info-tint);
+  --color-status-info-border: var(--status-info-border);
+
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--ledger-canvas);
+  color: var(--ledger-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  caret-color: var(--ledger-accent);
+}
+
+/* Branded Browser Surfaces */
+::selection {
+  background-color: var(--ledger-accent-tint);
+  color: var(--ledger-ink);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ledger-accent);
+  outline-offset: 2px;
+}
+
+/* Precision Subtle Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ledger-hairline-strong);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ledger-ink-muted);
+}
+
+/* Utility Surfaces & Typography Helpers */
+.ledger-folio {
+  background-color: var(--ledger-folio);
+  box-shadow: var(--ledger-shadow-folio);
+}
+
+.ledger-overlay {
+  background-color: var(--ledger-elevated);
+  box-shadow: var(--ledger-shadow-overlay);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-pretty {
+  text-wrap: pretty;
+}
+
+/* Purposeful State Reveal (180ms exponential ease-out, GPU-composited) */
+@keyframes ledger-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-ledger-enter {
+  animation: ledger-enter 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes skeleton-shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.ledger-skeleton {
+  background-color: var(--ledger-hairline);
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ledger-enter,
+  .ledger-skeleton {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

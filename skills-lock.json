@@ -1,0 +1,236 @@
+{
+  "version": 2,
+  "skills": {
+    "boy-scout": {
+      "source": "ertugrul-dmr/clean-code-skills",
+      "commit": "1b6b3cc1264b8fbe921c65002d05a3bf90ede178",
+      "sourceType": "github",
+      "skillPath": "skills/python/boy-scout/SKILL.md",
+      "computedHash": "a352170bd4c130baf12346dce102a5e25fb2433659eaa6de444a360471a0fa64"
+    },
+    "clean-code": {
+      "source": "btseee/clean-code-skills",
+      "commit": "49b1354be3ec9d0158c99b1c1c9bc1f833133640",
+      "sourceType": "github",
+      "skillPath": "skills/clean-code/SKILL.md",
+      "computedHash": "9995da503eedf0dca762f1ea1f4f5cb812a05e95d6a524f6a57ac8c2fd853eae"
+    },
+    "code-review-and-quality": {
+      "source": "addyosmani/agent-skills",
+      "commit": "8c99fa36d90068c82d547f7c12a9d67a3e95f4ee",
+      "sourceType": "github",
+      "skillPath": "skills/code-review-and-quality/SKILL.md",
+      "computedHash": "a63e1874fa8f1ee04194868f9b8ba18133aa20464586369f3eedb8df6000a0cc"
+    },
+    "context7": {
+      "source": "netresearch/context7-skill",
+      "commit": "aa3451319a30168e3826b4baf3d729698752e773",
+      "sourceType": "github",
+      "skillPath": "skills/context7/SKILL.md",
+      "computedHash": "4d6ba3af908340f01c9e66853655571629fefc0d5b9a4e01b697c38f5391523b"
+    },
+    "debugging-and-error-recovery": {
+      "source": "addyosmani/agent-skills",
+      "commit": "8c99fa36d90068c82d547f7c12a9d67a3e95f4ee",
+      "sourceType": "github",
+      "skillPath": "skills/debugging-and-error-recovery/SKILL.md",
+      "computedHash": "aa26ffd65f2e2759c66806c4a3111c6fbaad612c5f39799bd3bc6cd942abd0fc"
+    },
+    "fastapi-python": {
+      "source": "Mindrally/skills",
+      "commit": "7682ca77710e0971eab4e0ae5dddfa281aea0ba5",
+      "sourceType": "github",
+      "skillPath": "fastapi-python/SKILL.md",
+      "computedHash": "dcd375a6d6b3874ad5a11237399a20c851e6b221dee5dd3ad52a7d67bb3e53e8"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "commit": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "83485963700bcf11d5bf78118facb301676b69d918fee2e45a95e7f1a2840f6c"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "commit": "b49177d32788f2dc585c42831d845dacf1ebed2c",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "08bd5bf141cb507f46bd8347890cd985865606f15adf88295ed3a73bc9ad5d96"
+    },
+    "improve-animations": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/improve-animations/SKILL.md",
+      "computedHash": "5c33add82a79754bec0d7ee3376525e24e77b34575d5ae29d0c204f730356eab"
+    },
+    "interface-design": {
+      "source": "Dammyjay93/interface-design",
+      "commit": "2f9be3206855bcb2d1d0af262c8bae25cba6658d",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/interface-design/SKILL.md",
+      "computedHash": "1491bb966a2c289550e0d6eb25c19b0570ead479240f6b2ba5766d94599ea744"
+    },
+    "karpathy-guidelines": {
+      "source": "forrestchang/andrej-karpathy-skills",
+      "commit": "2c606141936f1eeef17fa3043a72095b4765b9c2",
+      "sourceType": "github",
+      "skillPath": "skills/karpathy-guidelines/SKILL.md",
+      "computedHash": "e64131803b0a34b8c39afc11338a74f8305cf8f69f750620bdf6cb38f6865c52"
+    },
+    "langchain-agent-experiments": {
+      "source": "langchain-ai/langchain-skills",
+      "commit": "fb22e0603bb6e9528bf4c9a58a2e633fe17c5267",
+      "sourceType": "github",
+      "skillPath": "skills/langchain-agent-experiments/SKILL.md",
+      "computedHash": "4fba4b2a2fbf24dfbd2bbe38ad07bb1e8aecb803c448ec3ac8dd1258a2ed1dfe"
+    },
+    "langchain-agent-monitoring": {
+      "source": "langchain-ai/langchain-skills",
+      "commit": "fb22e0603bb6e9528bf4c9a58a2e633fe17c5267",
+      "sourceType": "github",
+      "skillPath": "skills/langchain-agent-monitoring/SKILL.md",
+      "computedHash": "4bc5db11059bd869c448a7e9bdbe8097a2093fe780985c426c28a9f022c623dc"
+    },
+    "langchain-agent-tracing": {
+      "source": "langchain-ai/langchain-skills",
+      "commit": "fb22e0603bb6e9528bf4c9a58a2e633fe17c5267",
+      "sourceType": "github",
+      "skillPath": "skills/langchain-agent-tracing/SKILL.md",
+      "computedHash": "755dbdceeda535f453d5f919ae67a0d0db8b7ffbe1079222cf0ee1270f766a6f"
+    },
+    "langchain-build-agent": {
+      "source": "langchain-ai/langchain-skills",
+      "commit": "fb22e0603bb6e9528bf4c9a58a2e633fe17c5267",
+      "sourceType": "github",
+      "skillPath": "skills/langchain-build-agent/SKILL.md",
+      "computedHash": "7632682b9610a2f51285554b5c0477d621ddafa5e7780ea7177b9ae17380ec6b"
+    },
+    "langchain-eval-engineering": {
+      "source": "langchain-ai/langchain-skills",
+      "commit": "fb22e0603bb6e9528bf4c9a58a2e633fe17c5267",
+      "sourceType": "github",
+      "skillPath": "skills/langchain-eval-engineering/SKILL.md",
+      "computedHash": "a965ebbb4195275e89c130d9eff6fb1ae871f98d4f0bd3ba84a10be4cb75c05b"
+    },
+    "langsmith-custom-apps": {
+      "source": "langchain-ai/langsmith-skills",
+      "commit": "88065c987e6ae2d457a48544a8dde15256edfd0e",
+      "sourceType": "github",
+      "skillPath": "config/skills/langsmith-custom-apps/SKILL.md",
+      "computedHash": "2c21a79069bfad0748ffbf470909027aafa4d308502692739ddadb240fb93a3a"
+    },
+    "langsmith-dataset": {
+      "source": "langchain-ai/langsmith-skills",
+      "commit": "88065c987e6ae2d457a48544a8dde15256edfd0e",
+      "sourceType": "github",
+      "skillPath": "config/skills/langsmith-dataset/SKILL.md",
+      "computedHash": "e4ca1cbc3889b561c15c8bf28a69fe29e25e442afb85b5253f46b8b6e585754e"
+    },
+    "langsmith-evaluator": {
+      "source": "langchain-ai/langsmith-skills",
+      "commit": "88065c987e6ae2d457a48544a8dde15256edfd0e",
+      "sourceType": "github",
+      "skillPath": "config/skills/langsmith-evaluator/SKILL.md",
+      "computedHash": "3af74119a031da8414a8bc0fc46224d95c9282a9d4ed715522f6a5a4053e50c2"
+    },
+    "langsmith-experiment-diagnosis": {
+      "source": "langchain-ai/langsmith-skills",
+      "commit": "88065c987e6ae2d457a48544a8dde15256edfd0e",
+      "sourceType": "github",
+      "skillPath": "config/skills/langsmith-experiment-diagnosis/SKILL.md",
+      "computedHash": "f31beb349c8679c3bb5850fecd19626d68a7ea758c1ce636a97aaa5f7df47c32"
+    },
+    "langsmith-graph-evaluator": {
+      "source": "langchain-ai/langsmith-skills",
+      "commit": "88065c987e6ae2d457a48544a8dde15256edfd0e",
+      "sourceType": "github",
+      "skillPath": "config/skills/langsmith-graph-evaluator/SKILL.md",
+      "computedHash": "32e2e9b38185111aebd1e45537c65314596784f515e5c2cead8e7899c5b6c6b6"
+    },
+    "langsmith-online-eval-engineering": {
+      "source": "langchain-ai/langsmith-skills",
+      "commit": "88065c987e6ae2d457a48544a8dde15256edfd0e",
+      "sourceType": "github",
+      "skillPath": "config/skills/langsmith-online-eval-engineering/SKILL.md",
+      "computedHash": "b48adf44d638a36bb1731757d3ea24dec742df649e35e818283651e6873974ae"
+    },
+    "langsmith-trace": {
+      "source": "langchain-ai/langsmith-skills",
+      "commit": "88065c987e6ae2d457a48544a8dde15256edfd0e",
+      "sourceType": "github",
+      "skillPath": "config/skills/langsmith-trace/SKILL.md",
+      "computedHash": "935b92c84d084684347dc2caf25dcf28b373f950316abc5b19306641a72d9eae"
+    },
+    "mcp-builder": {
+      "source": "anthropics/skills",
+      "commit": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
+      "sourceType": "github",
+      "skillPath": "skills/mcp-builder/SKILL.md",
+      "computedHash": "5a699fa929d99d7e6b1ebe10f13bf960d9ad452b70bd0733efd5d1de9524e285"
+    },
+    "migrate-radix-to-base": {
+      "source": "shadcn-ui/ui",
+      "commit": "bfa64ff4d1cb7317d2403ecb176df6826d4caffc",
+      "sourceType": "github",
+      "skillPath": "skills/migrate-radix-to-base/SKILL.md",
+      "computedHash": "7644de21e9aa533904def58c30f809ae6574c3cabc6396ab8b03dee751e8ffbe"
+    },
+    "python-clean-code": {
+      "source": "ertugrul-dmr/clean-code-skills",
+      "commit": "1b6b3cc1264b8fbe921c65002d05a3bf90ede178",
+      "sourceType": "github",
+      "skillPath": "skills/python/python-clean-code/SKILL.md",
+      "computedHash": "99150bea17e2026c43047539f7e1245b188d1da06273542947957b5bbae69385"
+    },
+    "refactoring-patterns": {
+      "source": "wondelai/skills",
+      "commit": "c5265583b1a9740f06831e1d3e89b35bba3eb430",
+      "sourceType": "github",
+      "skillPath": "refactoring-patterns/SKILL.md",
+      "computedHash": "d6b31d50feaf66929da92cb5f8da61af60daf76b6f1e30860d46810a674bdf98"
+    },
+    "security-and-hardening": {
+      "source": "addyosmani/agent-skills",
+      "commit": "8c99fa36d90068c82d547f7c12a9d67a3e95f4ee",
+      "sourceType": "github",
+      "skillPath": "skills/security-and-hardening/SKILL.md",
+      "computedHash": "9bfc78e1ee2e23f3d226f610d8ed8e0cf6fb4f7e90a44db0a41b636735a24767"
+    },
+    "shadcn": {
+      "source": "shadcn-ui/ui",
+      "commit": "bfa64ff4d1cb7317d2403ecb176df6826d4caffc",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "388962d16c7a4f13aaeee0d8f128e50a87df8553d42ef7988c39c0e1c74a40e8"
+    },
+    "spec-driven-development": {
+      "source": "addyosmani/agent-skills",
+      "commit": "8c99fa36d90068c82d547f7c12a9d67a3e95f4ee",
+      "sourceType": "github",
+      "skillPath": "skills/spec-driven-development/SKILL.md",
+      "computedHash": "e560111a2823150a1be6d5a264cd3449dbdb9c67de011eea29204b4dee438e58"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "79ff0583175346e39431b0dc713b223edd1bd7a7ea2b6c8b78b2fb9a3fed6782"
+    },
+    "test-driven-development": {
+      "source": "addyosmani/agent-skills",
+      "commit": "8c99fa36d90068c82d547f7c12a9d67a3e95f4ee",
+      "sourceType": "github",
+      "skillPath": "skills/test-driven-development/SKILL.md",
+      "computedHash": "37cc05dea2a455d5d3ff252f14a7323ef378536603cce8cd2c758dc8fac790e6"
+    },
+    "typescript-clean-code": {
+      "source": "ertugrul-dmr/clean-code-skills",
+      "commit": "1b6b3cc1264b8fbe921c65002d05a3bf90ede178",
+      "sourceType": "github",
+      "skillPath": "skills/typescript/typescript-clean-code/SKILL.md",
+      "computedHash": "17b2ca19391864bff75dff197590623d82d4786462721ee563d941afe1a05b02"
+    }
+  }
+}

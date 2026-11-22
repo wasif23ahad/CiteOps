@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-citeops_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-citeops}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - citeops_pg_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/00_extensions.sql:ro
@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-6380}:6379"
     volumes:
       - citeops_redis_data:/data
     healthcheck:
@@ -43,7 +43,7 @@ services:
       - path: ./.env
         required: false
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-citeops}:${POSTGRES_PASSWORD:-citeops_dev_password}@postgres:5432/${POSTGRES_DB:-citeops}
+      DATABASE_URL: postgresql://citeops_app:citeops_app_dev_password@postgres:5432/${POSTGRES_DB:-citeops}
       DATABASE_ADMIN_URL: postgresql://${POSTGRES_USER:-citeops}:${POSTGRES_PASSWORD:-citeops_dev_password}@postgres:5432/${POSTGRES_DB:-citeops}
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: http://localhost:3000
