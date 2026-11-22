@@ -1,16 +1,20 @@
+import asyncio
+
 from redis.asyncio import Redis
 
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+_REDIS_OP_TIMEOUT_S = 0.4
+
 
 class CorpusVersionStore:
     """
-    Manages per-tenant `corpus_version` counters in Redis (`tenant:version:{tenant_id}`).
+    Canonical manager for per-tenant `corpus_version` counters (`tenant:version:{tenant_id}`).
 
-    Provides O(1) generation-based cache invalidation on document ingest/delete and
-    fails open (returns version 1) if Redis is temporarily unavailable.
+    Provides bounded-timeout O(1) generation-based cache invalidation on document ingest/delete
+    and fails open (returns version 1) if Redis is temporarily unavailable.
     """
 
     def __init__(self, redis_client: Redis | None) -> None:
@@ -24,7 +28,8 @@ class CorpusVersionStore:
         if self._redis is None:
             return 1
         try:
-            raw = await self._redis.get(self._key(tenant_id))
+            async with asyncio.timeout(_REDIS_OP_TIMEOUT_S):
+                raw = await self._redis.get(self._key(tenant_id))
             if raw is None:
                 return 1
             return max(1, int(raw))
@@ -37,10 +42,12 @@ class CorpusVersionStore:
             return 1
         key = self._key(tenant_id)
         try:
-            pipe = self._redis.pipeline(transaction=True)
-            pipe.set(key, "1", nx=True)
-            pipe.incr(key)
-            results = await pipe.execute()
+            async with asyncio.timeout(_REDIS_OP_TIMEOUT_S):
+                # Initialize unset key to 1 before INCR so v1 caches always invalidate to v2+
+                pipe = self._redis.pipeline(transaction=True)
+                pipe.set(key, "1", nx=True)
+                pipe.incr(key)
+                results = await pipe.execute()
             return max(2, int(results[-1]))
         except Exception as exc:
             logger.warning("redis_corpus_version_bump_failed", tenant_id=tenant_id, error=str(exc))

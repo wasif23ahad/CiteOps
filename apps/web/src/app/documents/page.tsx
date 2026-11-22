@@ -15,7 +15,7 @@ import { useState } from "react";
 import { UploadModal } from "@/components/upload-modal";
 import { ApiError, deleteDocument, listDocuments } from "@/lib/api";
 import { useTenant } from "@/lib/tenant-context";
-import { DOC_TYPE_LABELS, type DocType } from "@/lib/types";
+import { DOC_TYPES, DOC_TYPE_LABELS, type DocType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function TableSkeletonRows() {
@@ -60,7 +60,7 @@ export default function DocumentsPage() {
   const [filterDocType, setFilterDocType] = useState<DocType | "all">("all");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
   const [copiedHashId, setCopiedHashId] = useState<string | null>(null);
 
   const docsQuery = useQuery({
@@ -72,7 +72,7 @@ export default function DocumentsPage() {
   const deleteMutation = useMutation({
     mutationFn: (documentId: string) => deleteDocument(tenantId, documentId),
     onSuccess: (res) => {
-      setConfirmDeleteId(null);
+      setConfirmDeleteKey(null);
       setStatusNotice(
         `Removed document from ${res.tenant_id} and bumped cache generation to v${res.corpus_version}.`
       );
@@ -178,7 +178,7 @@ export default function DocumentsPage() {
         >
           All categories
         </button>
-        {(Object.keys(DOC_TYPE_LABELS) as DocType[]).map((dt) => (
+        {DOC_TYPES.map((dt) => (
           <button
             key={dt}
             type="button"
@@ -271,7 +271,8 @@ export default function DocumentsPage() {
                 </tr>
               ) : (
                 documents.map((doc) => {
-                  const awaitingConfirm = confirmDeleteId === doc.id;
+                  const rowKey = `${tenantId}:${doc.id}`;
+                  const awaitingConfirm = confirmDeleteKey === rowKey;
                   const copied = copiedHashId === doc.id;
                   return (
                     <tr
@@ -336,7 +337,7 @@ export default function DocumentsPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setConfirmDeleteId(null)}
+                              onClick={() => setConfirmDeleteKey(null)}
                               className="cursor-pointer rounded-md border border-ledger-hairline px-2 py-1 text-[11px] font-medium text-ledger-ink-secondary hover:text-ledger-ink"
                             >
                               Cancel
@@ -346,7 +347,7 @@ export default function DocumentsPage() {
                           <button
                             type="button"
                             disabled={deleteMutation.isPending}
-                            onClick={() => setConfirmDeleteId(doc.id)}
+                            onClick={() => setConfirmDeleteKey(rowKey)}
                             className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-ledger-hairline px-2.5 py-1 text-[11px] font-medium text-ledger-ink-secondary transition-colors duration-150 hover:border-status-fault-border hover:bg-status-fault-tint hover:text-status-fault disabled:opacity-50"
                           >
                             <Trash2 className="size-3" />

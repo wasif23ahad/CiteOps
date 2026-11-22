@@ -57,7 +57,7 @@ from evals.harness import (  # noqa: E402
     build_paced_gemini_judge,
     ensure_live_seeded_corpus,
     evaluate_retrieval_case,
-    execute_query_with_retry,
+    execute_query_with_context_retry,
     has_valid_inline_citations,
     measure_deepeval_case,
     percentile,
@@ -286,7 +286,7 @@ async def run_benchmark(
                 telemetry=None,
             )
 
-            # Phase A: Execute cold miss + warm L1 hit pass for every case
+            # Phase A: Execute cold miss + warm L1 hit pass for every case (single embed/rerank)
             for idx, case in enumerate(cases):
                 doc_types: list[DocType] | None = (
                     list(case.doc_types)  # type: ignore[arg-type]
@@ -300,24 +300,13 @@ async def run_benchmark(
                     top_k=5,
                 )
 
-                # Capture retrieval recall & full reranked passages for DeepEval
-                q_vec = await embedder.embed_query(case.query)
-                candidates = await retriever.retrieve(
-                    tenant_id=case.tenant_id,
-                    query_text=case.query,
-                    query_embedding=q_vec,
-                    doc_types=doc_types,
-                    candidate_limit=settings.rerank_candidate_count,
-                )
-                reranked = await reranker.rerank(case.query, candidates, top_k=5)
-                ret_eval = evaluate_retrieval_case(case, candidates=candidates, reranked=reranked)
-
-                # Pass 1: Cold execution (populates L1 + L2 cache for answered / L1 for gate-1)
-                cold_resp = await execute_query_with_retry(
+                # Pass 1: Cold execution returns response + retrieved/reranked chunks directly
+                cold_resp, candidates, reranked = await execute_query_with_context_retry(
                     orchestrator=orchestrator,
                     request=req,
                     rpm_gate=rpm_gate,
                 )
+                ret_eval = evaluate_retrieval_case(case, candidates=candidates, reranked=reranked)
 
                 # Pass 2: Immediate warm repeat (measures L1 cache-hit latency, 0 LLM calls)
                 warm_resp = await orchestrator.execute(req)
@@ -374,6 +363,7 @@ async def run_benchmark(
                     flush=True,
                 )
         finally:
+            await llm_router.aclose()
             if redis_client is not None:
                 await redis_client.aclose()
             await pool.close()

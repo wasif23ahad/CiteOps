@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from typing import Any, Literal
 
 from langfuse import Langfuse, is_langfuse_span, propagate_attributes
@@ -26,6 +26,8 @@ class TelemetryTracer:
     - Uses `should_export_span=is_langfuse_span` to drop noisy ASGI/infra spans and
       preserve Langfuse Cloud Hobby's 50,000 monthly tracing units.
     - Degrades cleanly to zero-overhead no-op spans when Langfuse keys are unset or in tests.
+    - Guarantees caller exceptions (e.g. HTTP 429/503 errors) always propagate without
+      triggering generator double-yield errors.
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -65,23 +67,34 @@ class TelemetryTracer:
             yield _NoOpObservation(), request_id
             return
 
-        try:
-            with propagate_attributes(
-                user_id=tenant_id,
-                tags=["citeops", "query", f"tenant:{tenant_id}"],
-                metadata={"request_id": request_id, "tenant_id": tenant_id},
-            ):
-                with self._client.start_as_current_observation(
-                    name="citeops.query",
-                    as_type="span",
-                    input={"tenant_id": tenant_id, "query": query},
-                    metadata={"request_id": request_id},
-                ) as root:
-                    trace_id = getattr(root, "trace_id", None) or request_id
-                    yield root, str(trace_id)
-        except Exception as exc:
-            logger.warning("langfuse_trace_error", error=str(exc))
-            yield _NoOpObservation(), request_id
+        with ExitStack() as stack:
+            root: Any = _NoOpObservation()
+            trace_id = request_id
+            try:
+                stack.enter_context(
+                    propagate_attributes(
+                        user_id=tenant_id,
+                        tags=["citeops", "query", f"tenant:{tenant_id}"],
+                        metadata={"request_id": request_id, "tenant_id": tenant_id},
+                    )
+                )
+                root = stack.enter_context(
+                    self._client.start_as_current_observation(
+                        name="citeops.query",
+                        as_type="span",
+                        input={"tenant_id": tenant_id, "query": query},
+                        metadata={"request_id": request_id},
+                    )
+                )
+                trace_id = str(getattr(root, "trace_id", None) or request_id)
+            except Exception as exc:
+                logger.warning("langfuse_trace_error", error=str(exc))
+                stack.close()
+                root = _NoOpObservation()
+                trace_id = request_id
+
+            # Yield strictly outside the setup try/except so caller exceptions propagate cleanly
+            yield root, trace_id
 
     @contextmanager
     def span(
@@ -98,18 +111,24 @@ class TelemetryTracer:
             yield _NoOpObservation()
             return
 
-        try:
-            with self._client.start_as_current_observation(
-                name=name,
-                as_type=as_type,  # type: ignore[arg-type]
-                input=input_data,
-                metadata=metadata,
-                model=model,
-            ) as obs:
-                yield obs
-        except Exception as exc:
-            logger.warning("langfuse_span_error", span_name=name, error=str(exc))
-            yield _NoOpObservation()
+        with ExitStack() as stack:
+            obs: Any = _NoOpObservation()
+            try:
+                obs = stack.enter_context(
+                    self._client.start_as_current_observation(
+                        name=name,
+                        as_type=as_type,  # type: ignore[arg-type]
+                        input=input_data,
+                        metadata=metadata,
+                        model=model,
+                    )
+                )
+            except Exception as exc:
+                logger.warning("langfuse_span_error", span_name=name, error=str(exc))
+                stack.close()
+                obs = _NoOpObservation()
+
+            yield obs
 
     def shutdown(self) -> None:
         if self._client is not None:

@@ -10,7 +10,11 @@ logger = get_logger(__name__)
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
 
-def run_migrations(database_admin_url: str | None = None) -> list[str]:
+def run_migrations(
+    database_admin_url: str | None = None,
+    *,
+    connect_timeout: int = 5,
+) -> list[str]:
     """Apply pending SQL migrations idempotently in sorted filename order."""
     settings = get_settings()
     conninfo = database_admin_url or settings.database_admin_url
@@ -18,7 +22,7 @@ def run_migrations(database_admin_url: str | None = None) -> list[str]:
 
     applied_now: list[str] = []
 
-    with psycopg.connect(conninfo, autocommit=False) as conn:
+    with psycopg.connect(conninfo, autocommit=False, connect_timeout=connect_timeout) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

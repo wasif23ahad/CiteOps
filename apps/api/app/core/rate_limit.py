@@ -124,9 +124,18 @@ class SlidingWindowRateLimiter:
 
         return self._evaluate_in_memory(key, limit, now_ms)
 
+    _MAX_FALLBACK_BUCKETS = 1024
+
     def _evaluate_in_memory(self, key: str, limit: int, now_ms: int) -> RateLimitDecision:
-        bucket = self._fallback_buckets.setdefault(key, deque())
         cutoff = now_ms - self._window_ms
+        if len(self._fallback_buckets) >= self._MAX_FALLBACK_BUCKETS:
+            stale_keys = [
+                k for k, b in self._fallback_buckets.items() if not b or b[-1] <= cutoff
+            ]
+            for stale_key in stale_keys:
+                self._fallback_buckets.pop(stale_key, None)
+
+        bucket = self._fallback_buckets.setdefault(key, deque())
         while bucket and bucket[0] <= cutoff:
             bucket.popleft()
 

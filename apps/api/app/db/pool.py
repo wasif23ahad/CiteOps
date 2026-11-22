@@ -8,8 +8,9 @@ from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
 
 from app.core.config import Settings
+from app.domain.models import TENANT_ID_PATTERN
 
-TENANT_ID_REGEX = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
+TENANT_ID_REGEX = re.compile(TENANT_ID_PATTERN)
 
 
 def validate_tenant_id(tenant_id: str) -> str:

@@ -2,10 +2,10 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, FileText, FileUp, Loader2, Sparkles, UploadCloud, X } from "lucide-react";
-import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 
 import { ApiError, ingestDocument } from "@/lib/api";
-import { DOC_TYPE_LABELS, type DocType, type IngestResponse } from "@/lib/types";
+import { DOC_TYPES, DOC_TYPE_LABELS, type DocType, type IngestResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface UploadModalProps {
@@ -13,13 +13,6 @@ interface UploadModalProps {
   tenantId: string;
   onClose: () => void;
 }
-
-const DOC_TYPES: DocType[] = [
-  "api_docs",
-  "security_policy",
-  "sla_contract",
-  "runbook",
-];
 
 export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
   const queryClient = useQueryClient();
@@ -40,18 +33,24 @@ export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
     },
   });
 
+  const { reset: resetMutation } = mutation;
+
+  const resetAndClose = useCallback(() => {
+    setLastResult(null);
+    resetMutation();
+    onClose();
+  }, [onClose, resetMutation]);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setLastResult(null);
-        mutation.reset();
-        onClose();
+        resetAndClose();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose, mutation]);
+  }, [open, resetAndClose]);
 
   if (!open) return null;
 
@@ -75,12 +74,6 @@ export function UploadModal({ open, tenantId, onClose }: UploadModalProps) {
       version: version.trim() || "v1.0",
       docTitle: docTitle.trim() || undefined,
     });
-  };
-
-  const resetAndClose = () => {
-    setLastResult(null);
-    mutation.reset();
-    onClose();
   };
 
   return (

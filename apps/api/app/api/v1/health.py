@@ -7,8 +7,10 @@ from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.schemas.health import DependencyCheck, HealthResponse
 
+logger = get_logger(__name__)
 router = APIRouter(tags=["health"])
 
 
@@ -47,8 +49,12 @@ async def _check_postgres(
         return pg_check, vec_check
     except Exception as exc:
         elapsed = round((time.perf_counter() - started) * 1000, 2)
-        detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
-        err = DependencyCheck(status="error", detail=detail, latency_ms=elapsed)
+        logger.warning(
+            "health_postgres_check_failed",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        err = DependencyCheck(status="error", detail="PostgreSQL unavailable", latency_ms=elapsed)
         return err, DependencyCheck(status="error", detail="Skipped (postgres unreachable)")
 
 
@@ -70,14 +76,14 @@ async def _check_redis(redis_client: Redis | None) -> DependencyCheck:
         )
     except Exception as exc:
         elapsed = round((time.perf_counter() - started) * 1000, 2)
-        detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
-        return DependencyCheck(status="degraded", detail=detail, latency_ms=elapsed)
+        logger.warning("health_redis_check_failed", error_type=type(exc).__name__, error=str(exc))
+        return DependencyCheck(status="degraded", detail="Redis unavailable", latency_ms=elapsed)
 
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check(request: Request, response: Response) -> HealthResponse:
     """Readiness and liveness probe verifying Postgres, pgvector, and Redis."""
-    settings = get_settings()
+    settings = getattr(request.app.state, "settings", None) or get_settings()
     db_pool: AsyncConnectionPool | None = getattr(request.app.state, "db_pool", None)
     redis_client: Redis | None = getattr(request.app.state, "redis", None)
 
@@ -96,12 +102,6 @@ async def health_check(request: Request, response: Response) -> HealthResponse:
     else:
         overall = "ok"
 
-    active_llm = (
-        settings.ollama_model
-        if settings.llm_provider == "ollama"
-        else settings.gemini_primary_model
-    )
-
     return HealthResponse(
         status=overall,
         service=settings.app_name,
@@ -109,7 +109,7 @@ async def health_check(request: Request, response: Response) -> HealthResponse:
         reranker_profile=settings.reranker_profile,
         reranker_model=settings.reranker_model_name,
         llm_provider=settings.llm_provider,
-        llm_model=active_llm,
+        llm_model=settings.active_llm_model,
         embedding_model=settings.embedding_model,
         embedding_dim=settings.embedding_dim,
         dependencies={

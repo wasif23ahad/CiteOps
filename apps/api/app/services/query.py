@@ -6,7 +6,7 @@ from app.core.config import Settings
 from app.core.logging import get_logger
 from app.core.rate_limit import SlidingWindowRateLimiter
 from app.core.telemetry import TelemetryTracer
-from app.domain.models import CacheTier, QueryAuditRecord
+from app.domain.models import CacheTier, QueryAuditRecord, RerankedChunk, RetrievedChunk
 from app.domain.ports import (
     AuditRepoPort,
     EmbeddingPort,
@@ -63,6 +63,16 @@ class QueryOrchestrator:
         *,
         trace_id: str | None = None,
     ) -> QueryResponse:
+        response, _, _ = await self.execute_with_context(request, trace_id=trace_id)
+        return response
+
+    async def execute_with_context(
+        self,
+        request: QueryRequest,
+        *,
+        trace_id: str | None = None,
+    ) -> tuple[QueryResponse, list[RetrievedChunk], list[RerankedChunk]]:
+        """Execute query and also return retrieved/reranked passages for evaluation harnesses."""
         total_started = time.perf_counter()
         req_id = trace_id or f"tr_{uuid.uuid4().hex[:16]}"
         tracer = self._telemetry
@@ -73,7 +83,7 @@ class QueryOrchestrator:
                 request_id=req_id,
                 query=request.query,
             ) as (root_obs, resolved_trace):
-                response = await self._execute_pipeline(
+                response, candidates, reranked = await self._execute_pipeline(
                     request=request,
                     resolved_trace=resolved_trace,
                     total_started=total_started,
@@ -88,7 +98,7 @@ class QueryOrchestrator:
                         "top_rerank_score": response.telemetry.top_rerank_score,
                     },
                 )
-                return response
+                return response, candidates, reranked
 
         return await self._execute_pipeline(
             request=request,
@@ -102,7 +112,7 @@ class QueryOrchestrator:
         request: QueryRequest,
         resolved_trace: str,
         total_started: float,
-    ) -> QueryResponse:
+    ) -> tuple[QueryResponse, list[RetrievedChunk], list[RerankedChunk]]:
         # 1. Per-tenant sliding-window admission control
         if self._rate_limiter is not None:
             with self._span("rate_limit.tenant", input_data={"tenant_id": request.tenant_id}):
@@ -123,13 +133,14 @@ class QueryOrchestrator:
                 l1_span.update(output={"hit": l1_payload is not None})
 
             if l1_payload is not None:
-                return await self._finalize_cache_hit(
+                resp = await self._finalize_cache_hit(
                     tenant_id=request.tenant_id,
                     cached_payload=l1_payload,
                     cache_tier="exact",
                     total_started=total_started,
                     resolved_trace=resolved_trace,
                 )
+                return resp, [], []
 
         # 3. Embed query
         embed_started = time.perf_counter()
@@ -157,13 +168,24 @@ class QueryOrchestrator:
                     }
                 )
             if l2_match is not None:
-                return await self._finalize_cache_hit(
+                # Promote L2 paraphrase hit into L1 exact key (query_embedding=None avoids
+                # duplicating the vector list) so identical repeats resolve in <5 ms with 0 embeds.
+                await self._cache.store(
+                    tenant_id=request.tenant_id,
+                    corpus_version=corpus_version,
+                    doc_types=request.doc_types,
+                    query=request.query,
+                    query_embedding=None,
+                    payload=l2_match[0],
+                )
+                resp = await self._finalize_cache_hit(
                     tenant_id=request.tenant_id,
                     cached_payload=l2_match[0],
                     cache_tier="semantic",
                     total_started=total_started,
                     resolved_trace=resolved_trace,
                 )
+                return resp, [], []
 
         # 5. Hybrid RRF Retrieval (strict PostgreSQL RLS)
         ret_started = time.perf_counter()
@@ -251,7 +273,7 @@ class QueryOrchestrator:
                 top_rerank_score=top_score,
                 latency_ms=total_ms,
             )
-            return response
+            return response, candidates, reranked
 
         # 8. Global LLM-miss rate limit guard (protects free-tier upstream RPM)
         if self._rate_limiter is not None:
@@ -344,7 +366,7 @@ class QueryOrchestrator:
             latency_ms=total_ms,
             downgraded=outcome.downgraded,
         )
-        return response
+        return response, candidates, reranked
 
     def _span(self, name: str, **kwargs: Any) -> Any:
         if self._telemetry is not None:

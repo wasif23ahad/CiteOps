@@ -33,26 +33,38 @@ class PyMuPDFDocumentParser:
         return self._parse_markdown_or_text(file_bytes)
 
     def _parse_pdf(self, file_bytes: bytes) -> list[ParsedPage]:
-        pages: list[ParsedPage] = []
-        with pymupdf.open(stream=file_bytes, filetype="pdf") as pdf_doc:
-            raw_chunks = pymupdf4llm.to_markdown(pdf_doc, page_chunks=True)
-            for idx, item in enumerate(raw_chunks, start=1):
-                if isinstance(item, dict):
-                    text = str(item.get("text", "")).strip()
-                    meta = item.get("metadata") or {}
-                    raw_page = meta.get("page_number") or meta.get("page")
-                    if isinstance(raw_page, int):
-                        # pymupdf4llm page metadata can be 1-based or 0-based depending on version;
-                        # idx is strictly 1..N matching the PDF page sequence.
-                        page_number = idx if raw_page in (idx - 1, idx) else max(1, raw_page)
-                    else:
-                        page_number = idx
-                else:
-                    text = str(item).strip()
-                    page_number = idx
+        if not file_bytes.lstrip().startswith(b"%PDF-"):
+            raise UnsupportedDocumentFormatError(
+                "Uploaded file does not have a valid PDF header (%PDF-)."
+            )
 
-                if text:
-                    pages.append(ParsedPage(page_number=page_number, markdown_text=text))
+        pages: list[ParsedPage] = []
+        try:
+            with pymupdf.open(stream=file_bytes, filetype="pdf") as pdf_doc:
+                raw_chunks = pymupdf4llm.to_markdown(pdf_doc, page_chunks=True)
+                for idx, item in enumerate(raw_chunks, start=1):
+                    if isinstance(item, dict):
+                        text = str(item.get("text", "")).strip()
+                        meta = item.get("metadata") or {}
+                        raw_page = meta.get("page_number") or meta.get("page")
+                        if isinstance(raw_page, int):
+                            # pymupdf4llm page metadata can be 1-based or 0-based depending on
+                            # version; idx is strictly 1..N matching the PDF page sequence.
+                            page_number = idx if raw_page in (idx - 1, idx) else max(1, raw_page)
+                        else:
+                            page_number = idx
+                    else:
+                        text = str(item).strip()
+                        page_number = idx
+
+                    if text:
+                        pages.append(ParsedPage(page_number=page_number, markdown_text=text))
+        except UnsupportedDocumentFormatError:
+            raise
+        except Exception as exc:
+            raise UnsupportedDocumentFormatError(
+                "Unable to parse PDF document (file may be corrupted or encrypted)."
+            ) from exc
 
         if not pages:
             raise UnsupportedDocumentFormatError(

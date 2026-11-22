@@ -91,6 +91,12 @@ class Settings(BaseSettings):
             return "BAAI/bge-reranker-base"
         return "Xenova/ms-marco-MiniLM-L-6-v2"
 
+    @property
+    def active_llm_model(self) -> str:
+        if self.llm_provider == "ollama":
+            return f"ollama/{self.ollama_model}"
+        return self.gemini_primary_model
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

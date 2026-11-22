@@ -125,6 +125,13 @@ export interface HealthResponse {
   dependencies: Record<string, DependencyCheck>;
 }
 
+export const DOC_TYPES: readonly DocType[] = [
+  "api_docs",
+  "security_policy",
+  "sla_contract",
+  "runbook",
+];
+
 export const DOC_TYPE_LABELS: Record<DocType, string> = {
   api_docs: "API Docs",
   security_policy: "Security Policy",

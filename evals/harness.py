@@ -499,19 +499,23 @@ class SlidingWindowRPMGate:
             return
 
 
-async def execute_query_with_retry(
+async def execute_query_with_context_retry(
     *,
     orchestrator: Any,
     request: Any,
     rpm_gate: SlidingWindowRPMGate | None = None,
     max_attempts: int = 4,
-) -> Any:
-    """Execute a QueryOrchestrator request with automatic 429/503 cooldown retry for evals."""
+) -> tuple[Any, list[RetrievedChunk], list[RerankedChunk]]:
+    """
+    Execute a QueryOrchestrator request once (returning response + retrieved/reranked chunks)
+    with automatic 429/503 cooldown retry so eval harnesses avoid double embedding/reranking.
+    """
     for attempt in range(max_attempts):
         if rpm_gate is not None:
             await rpm_gate.acquire()
         try:
-            return await orchestrator.execute(request)
+            response, candidates, reranked = await orchestrator.execute_with_context(request)
+            return response, candidates, reranked
         except Exception as exc:
             err_text = str(exc)
             if not is_transient_rate_or_capacity_error(err_text) or attempt == max_attempts - 1:
@@ -523,12 +527,11 @@ async def execute_query_with_retry(
                 flush=True,
             )
             await asyncio.sleep(wait_s)
-            # Clear router cooldown so retry immediately uses the refreshed quota window
             llm = getattr(orchestrator, "_llm", None)
             cooldowns = getattr(llm, "_cooldown_until", None)
             if isinstance(cooldowns, dict):
                 cooldowns.clear()
-    raise RuntimeError("Unreachable retry exhaustion in execute_query_with_retry")
+    raise RuntimeError("Unreachable retry exhaustion in execute_query_with_context_retry")
 
 
 def build_paced_gemini_judge(

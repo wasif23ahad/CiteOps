@@ -7,6 +7,8 @@ DocType = Literal["api_docs", "security_policy", "sla_contract", "runbook"]
 QueryStatus = Literal["answered", "insufficient_evidence", "error"]
 CacheTier = Literal["exact", "semantic", "miss"]
 
+TENANT_ID_PATTERN = r"^[a-z0-9][a-z0-9_-]{1,62}$"
+
 
 @dataclass(frozen=True, slots=True)
 class ParsedPage:

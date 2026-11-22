@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.adapters.llm_router import LLMUnavailableError
-from app.core.logging import request_id_ctx
+from app.core.logging import get_logger, request_id_ctx
 from app.core.rate_limit import RateLimitExceededError
 from app.schemas.query import QueryRequest, QueryResponse
 from app.services.query import QueryOrchestrator
 
+logger = get_logger(__name__)
 router = APIRouter(tags=["query"])
 
 
@@ -40,8 +41,16 @@ async def execute_query(request: Request, payload: QueryRequest) -> QueryRespons
             },
         ) from exc
     except LLMUnavailableError as exc:
+        logger.warning(
+            "query_llm_unavailable",
+            tenant_id=payload.tenant_id,
+            error=str(exc),
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
+            detail=(
+                "All upstream LLM providers are temporarily unavailable or rate-limited. "
+                "Please retry shortly."
+            ),
             headers={"Retry-After": "10"},
         ) from exc

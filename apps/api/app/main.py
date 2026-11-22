@@ -75,6 +75,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     corpus_versions = CorpusVersionStore(redis_client)
     semantic_cache = RedisSemanticCache(
         redis_client,
+        corpus_versions=corpus_versions,
         similarity_threshold=settings.semantic_cache_threshold,
         max_entries=settings.semantic_cache_max_entries,
         default_ttl_seconds=settings.cache_ttl_seconds,
@@ -147,6 +148,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         telemetry.shutdown()
+        llm_router_inst = getattr(app.state, "llm_router", None)
+        if llm_router_inst is not None:
+            await llm_router_inst.aclose()
         if redis_client is not None:
             await redis_client.aclose()
         if db_pool is not None:
@@ -207,6 +211,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             response: Response = await call_next(request)  # type: ignore[operator]
             response.headers["X-Request-ID"] = req_id
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("X-Frame-Options", "DENY")
+            response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
             elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
             logger.info(
                 "http_request",

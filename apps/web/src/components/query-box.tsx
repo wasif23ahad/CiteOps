@@ -3,15 +3,8 @@
 import { ArrowUp, Loader2 } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
 
-import { DOC_TYPE_LABELS, type DocType } from "@/lib/types";
+import { DOC_TYPES, DOC_TYPE_LABELS, type DocType } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const ALL_DOC_TYPES: DocType[] = [
-  "api_docs",
-  "security_policy",
-  "sla_contract",
-  "runbook",
-];
 
 const SAMPLE_PROMPTS: Record<string, { label: string; query: string }[]> = {
   "acme-corp": [
@@ -128,7 +121,7 @@ export function QueryBox({
             >
               All docs
             </button>
-            {ALL_DOC_TYPES.map((dt) => {
+            {DOC_TYPES.map((dt) => {
               const active = selectedDocTypes.includes(dt);
               return (
                 <button

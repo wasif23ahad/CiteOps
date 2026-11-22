@@ -1,11 +1,12 @@
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
 from app.adapters.parser_pymupdf import UnsupportedDocumentFormatError
-from app.domain.models import DocType
+from app.domain.models import TENANT_ID_PATTERN, DocType
 from app.schemas.ingest import IngestResponse
-from app.services.ingestion import IngestionOrchestrator, PayloadTooLargeError
+from app.services.ingestion import MAX_UPLOAD_BYTES, IngestionOrchestrator, PayloadTooLargeError
 
 router = APIRouter(tags=["ingestion"])
 
@@ -26,7 +27,7 @@ def _get_orchestrator(request: Request) -> IngestionOrchestrator:
 async def ingest_document(
     request: Request,
     file: Annotated[UploadFile, File(description="PDF, Markdown, or plain-text document")],
-    tenant_id: Annotated[str, Form(min_length=2, max_length=63)],
+    tenant_id: Annotated[str, Form(pattern=TENANT_ID_PATTERN, min_length=2, max_length=63)],
     doc_type: Annotated[DocType, Form()],
     version: Annotated[str, Form(min_length=1, max_length=64)],
     doc_title: Annotated[str | None, Form(max_length=200)] = None,
@@ -34,14 +35,23 @@ async def ingest_document(
 ) -> IngestResponse:
     """Idempotently ingest a PDF or Markdown file into a tenant's isolated knowledge base."""
     orchestrator = _get_orchestrator(request)
-    file_bytes = await file.read()
-    filename = file.filename or "uploaded_document.md"
+
+    # Bounded read prevents OOM-kills on oversized uploads before validation
+    file_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"File exceeds maximum size of {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+        )
+
+    # Strip any client-supplied directory components before storing metadata
+    safe_filename = Path(file.filename or "uploaded_document.md").name or "uploaded_document.md"
 
     try:
         return await orchestrator.ingest(
             tenant_id=tenant_id,
             file_bytes=file_bytes,
-            filename=filename,
+            filename=safe_filename,
             doc_type=doc_type,
             version=version.strip(),
             doc_title=doc_title,

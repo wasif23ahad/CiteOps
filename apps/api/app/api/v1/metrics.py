@@ -30,12 +30,6 @@ async def get_metrics_summary(
     settings = getattr(request.app.state, "settings", None) or get_settings()
     summary = await repo.get_metrics_summary(tenant_id)
 
-    active_llm = (
-        f"ollama/{settings.ollama_model}"
-        if settings.llm_provider == "ollama"
-        else settings.gemini_primary_model
-    )
-
     return MetricsSummaryResponse(
         tenant_id=summary.tenant_id,
         total_queries=summary.total_queries,
@@ -47,7 +41,7 @@ async def get_metrics_summary(
         p95_latency_ms=summary.p95_latency_ms,
         p95_cache_hit_ms=summary.p95_cache_hit_ms,
         p95_cache_miss_ms=summary.p95_cache_miss_ms,
-        active_llm_model=active_llm,
+        active_llm_model=settings.active_llm_model,
         active_reranker_model=settings.reranker_model_name,
         reranker_profile=settings.reranker_profile,
     )

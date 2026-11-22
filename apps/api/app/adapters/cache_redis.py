@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 from redis.asyncio import Redis
 
+from app.adapters.corpus_version import CorpusVersionStore
 from app.core.logging import get_logger
 from app.domain.models import DocType
 
@@ -68,18 +69,16 @@ class RedisSemanticCache:
         self,
         redis_client: Redis | None,
         *,
+        corpus_versions: CorpusVersionStore | None = None,
         similarity_threshold: float = 0.95,
         max_entries: int = 500,
         default_ttl_seconds: int = 86400,
     ) -> None:
         self._redis = redis_client
+        self._corpus_versions = corpus_versions or CorpusVersionStore(redis_client)
         self._threshold = similarity_threshold
         self._max_entries = max_entries
         self._default_ttl = default_ttl_seconds
-
-    @staticmethod
-    def _version_key(tenant_id: str) -> str:
-        return f"tenant:version:{tenant_id}"
 
     @staticmethod
     def _exact_key(
@@ -102,31 +101,10 @@ class RedisSemanticCache:
         return f"cache:vec:{tenant_id}:v{corpus_version}:{filt}"
 
     async def get_corpus_version(self, tenant_id: str) -> int:
-        if self._redis is None:
-            return 1
-        try:
-            async with asyncio.timeout(_REDIS_OP_TIMEOUT_S):
-                raw = await self._redis.get(self._version_key(tenant_id))
-            return max(1, int(raw)) if raw is not None else 1
-        except Exception as exc:
-            logger.warning("cache_version_get_failed", tenant_id=tenant_id, error=str(exc))
-            return 1
+        return await self._corpus_versions.get_version(tenant_id)
 
     async def bump_corpus_version(self, tenant_id: str) -> int:
-        if self._redis is None:
-            return 1
-        key = self._version_key(tenant_id)
-        try:
-            async with asyncio.timeout(_REDIS_OP_TIMEOUT_S):
-                # Initialize unset key to 1 before INCR so v1 caches always invalidate to v2+
-                pipe = self._redis.pipeline(transaction=True)
-                pipe.set(key, "1", nx=True)
-                pipe.incr(key)
-                results = await pipe.execute()
-            return max(2, int(results[-1]))
-        except Exception as exc:
-            logger.warning("cache_version_bump_failed", tenant_id=tenant_id, error=str(exc))
-            return 1
+        return await self._corpus_versions.bump_version(tenant_id)
 
     async def lookup_exact(
         self,

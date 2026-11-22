@@ -102,14 +102,15 @@ class ResilientLLMRouter:
         self,
         settings: Settings,
         *,
-        cooldown_seconds: float = 60.0,
-        request_timeout_ms: int = 15_000,
+        cooldown_seconds: float = 300.0,
+        request_timeout_ms: int = 8_000,
     ) -> None:
         self._settings = settings
         self._cooldown_seconds = cooldown_seconds
         self._cooldown_until: dict[str, float] = {}
+        self._http_client: httpx.AsyncClient | None = None
 
-        # Disable SDK's hidden multi-minute internal retry loop so failover happens in <2s
+        # Disable SDK's hidden multi-minute internal retry loop so failover happens quickly
         self._gemini_client: genai.Client | None = (
             genai.Client(
                 api_key=settings.gemini_api_key,
@@ -121,6 +122,16 @@ class ResilientLLMRouter:
             if settings.gemini_api_key
             else None
         )
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(timeout=25.0)
+        return self._http_client
+
+    async def aclose(self) -> None:
+        if self._http_client is not None and not self._http_client.is_closed:
+            await self._http_client.aclose()
+            self._http_client = None
 
     def _is_in_cooldown(self, model_name: str) -> bool:
         return time.monotonic() < self._cooldown_until.get(model_name, 0.0)
@@ -153,10 +164,9 @@ class ResilientLLMRouter:
 
         # 1. Gemini Primary -> Fallback chain with circuit-breaker fast skip
         if self._gemini_client is not None:
-            candidates = [
-                (self._settings.gemini_primary_model, True),
-                (self._settings.gemini_fallback_model, False),
-            ]
+            candidates: list[tuple[str, bool]] = [(self._settings.gemini_primary_model, True)]
+            if self._settings.gemini_fallback_model != self._settings.gemini_primary_model:
+                candidates.append((self._settings.gemini_fallback_model, False))
             # Try non-cooled-down models first; if all are in cooldown, probe them anyway
             ordered = [c for c in candidates if not self._is_in_cooldown(c[0])] or candidates
             for model_name, use_thinking in ordered:
@@ -262,50 +272,52 @@ class ResilientLLMRouter:
         )
         user_prompt = format_grounded_prompt(query, passages)
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self._settings.groq_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self._settings.groq_fallback_model,
-                    "temperature": 0.0,
-                    "response_format": {"type": "json_object"},
-                    "messages": [
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            parsed = GroundedLLMOutputSchema.model_validate_json(content)
-            return _schema_to_domain(parsed)
+        client = self._get_http_client()
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            timeout=20.0,
+            headers={
+                "Authorization": f"Bearer {self._settings.groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._settings.groq_fallback_model,
+                "temperature": 0.0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_prompt},
+                ],
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        parsed = GroundedLLMOutputSchema.model_validate_json(content)
+        return _schema_to_domain(parsed)
 
     async def _call_ollama(
         self, query: str, passages: Sequence[RerankedChunk]
     ) -> GroundedLLMResult:
         user_prompt = format_grounded_prompt(query, passages)
         url = f"{self._settings.ollama_base_url.rstrip('/')}/api/chat"
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                url,
-                json={
-                    "model": self._settings.ollama_model,
-                    "stream": False,
-                    "format": GroundedLLMOutputSchema.model_json_schema(),
-                    "options": {"temperature": 0.0},
-                    "messages": [
-                        {"role": "system", "content": _SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["message"]["content"]
-            parsed = GroundedLLMOutputSchema.model_validate_json(content)
-            return _schema_to_domain(parsed)
+        client = self._get_http_client()
+        resp = await client.post(
+            url,
+            timeout=60.0,
+            json={
+                "model": self._settings.ollama_model,
+                "stream": False,
+                "format": GroundedLLMOutputSchema.model_json_schema(),
+                "options": {"temperature": 0.0},
+                "messages": [
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["message"]["content"]
+        parsed = GroundedLLMOutputSchema.model_validate_json(content)
+        return _schema_to_domain(parsed)

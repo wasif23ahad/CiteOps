@@ -38,7 +38,7 @@ from evals.harness import (
     build_paced_gemini_judge,
     ensure_live_seeded_corpus,
     evaluate_retrieval_case,
-    execute_query_with_retry,
+    execute_query_with_context_retry,
     has_valid_inline_citations,
     measure_deepeval_case,
 )
@@ -113,7 +113,7 @@ async def test_rag_quality_deepeval_gate(
         abstention_failures: list[str] = []
         pending_judge: list[tuple[GoldenCase, str, list[str], float, str]] = []
 
-        # Phase A: Run all RAG queries cleanly (bounded under free-tier RPM)
+        # Phase A: Run all RAG queries once (no duplicate embed/retrieve/rerank per case)
         for case in cases:
             doc_types: list[DocType] | None = (
                 list(case.doc_types)  # type: ignore[arg-type]
@@ -127,25 +127,14 @@ async def test_rag_quality_deepeval_gate(
                 top_k=5,
             )
 
-            # Capture actual retrieved/reranked context for DeepEval retrieval_context fidelity
-            q_vec = await embedder.embed_query(case.query)
-            candidates = await retriever.retrieve(
-                tenant_id=case.tenant_id,
-                query_text=case.query,
-                query_embedding=q_vec,
-                doc_types=doc_types,
-                candidate_limit=settings.rerank_candidate_count,
-            )
-            reranked = await reranker.rerank(case.query, candidates, top_k=5)
-            ret_eval = evaluate_retrieval_case(case, candidates=candidates, reranked=reranked)
-            if ret_eval.source_recall is not None:
-                retrieval_recalls.append(ret_eval.source_recall)
-
-            response = await execute_query_with_retry(
+            response, candidates, reranked = await execute_query_with_context_retry(
                 orchestrator=orchestrator,
                 request=request,
                 rpm_gate=rpm_gate,
             )
+            ret_eval = evaluate_retrieval_case(case, candidates=candidates, reranked=reranked)
+            if ret_eval.source_recall is not None:
+                retrieval_recalls.append(ret_eval.source_recall)
 
             # Check cross-tenant / forbidden leakage in generated answer + hydrated excerpts
             answer_and_excerpts = "\n".join(
@@ -212,6 +201,7 @@ async def test_rag_quality_deepeval_gate(
                 flush=True,
             )
     finally:
+        await llm_router.aclose()
         await pool.close()
 
     mean_faithfulness = (
